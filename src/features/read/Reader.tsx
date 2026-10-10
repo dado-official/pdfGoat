@@ -49,10 +49,13 @@ interface Props {
   onFill: (pageId: string, fields: Record<number, string>) => void;
   /** Replaces the changes to the existing text and pictures of one page. */
   onEdit: (pageId: string, edits: Edit[]) => void;
+  /** Opens the dialog for passwords and the check before giving a file away. */
+  onProtect: () => void;
+  protectActive: boolean;
 }
 
 /** Continuous view of all pages with zoom and keyboard paging. */
-export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb, memory, onMemory, onAnnotate, onFill, onEdit }: Props) {
+export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb, memory, onMemory, onAnnotate, onFill, onEdit, onProtect, protectActive }: Props) {
   const { t, lang } = useI18n();
   const scroller = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState<Size>({ width: 800, height: 600 });
@@ -323,6 +326,24 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
     sel.removeAllRanges();
   }
 
+  /** Marks every match of the search for redaction. */
+  function redactMatches() {
+    const byPage = new Map<number, Box[]>();
+    for (const m of matches) byPage.set(m.page, [...(byPage.get(m.page) ?? []), ...m.boxes]);
+    for (const [index, boxes] of byPage) {
+      const page = pages[index];
+      const made: Annot[] = boxes.map((b) => ({
+        id: crypto.randomUUID(),
+        kind: 'redact',
+        color: '#14161a',
+        contents: '',
+        box: [b[0] - 1, b[1] - 1, b[2] + 1, b[3] + 1],
+        created: Date.now(),
+      }));
+      annotate(page, [...(page.annots ?? []), ...made]);
+    }
+  }
+
   function removeSelected() {
     for (const p of pages) {
       if (p.annots?.some((a) => a.id === selectedId)) {
@@ -440,6 +461,10 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
         }}
         stamp={stampName}
         onStamp={setStampName}
+        matchCount={matches.length}
+        onRedactMatches={redactMatches}
+        onProtect={onProtect}
+        protectActive={protectActive}
       />
       {pictureProblem && <p className="sign-problem picture-problem" role="alert">{t('sign.imageFailed')}</p>}
       <div className="reader-body">

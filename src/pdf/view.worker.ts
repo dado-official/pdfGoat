@@ -6,6 +6,7 @@ import { AppError, type ErrorCode, type ErrorParams } from '../core/errors';
 import type { Annot } from '../core/annotations';
 import { colorHex, type FontStyle } from '../core/edits';
 import { addComment, listComments } from './annotate';
+import { inspectPdf, type Inspection } from './protect';
 import { applyFields, hideWidgets, listFields, type FormField } from './forms';
 
 export type ViewRequest =
@@ -14,6 +15,7 @@ export type ViewRequest =
   | { id: number; type: 'fields'; docId: string; pageIndex: number }
   | { id: number; type: 'renderBytes'; bytes: Uint8Array; width: number }
   | { id: number; type: 'images'; docId: string; pageIndex: number }
+  | { id: number; type: 'inspect'; docId: string }
   | { id: number; type: 'imagePng'; docId: string; pageIndex: number; index: number }
   | { id: number; type: 'comments'; docId: string; pageIndex: number }
   | { id: number; type: 'text'; docId: string; pageIndex: number }
@@ -410,6 +412,11 @@ self.onmessage = async ({ data }: MessageEvent<ViewRequest>) => {
       }
       case 'comments':
         return post({ id: data.id, ok: true, result: fileComments(data) });
+      case 'inspect': {
+        const doc = docs.get(data.docId);
+        if (!doc) throw new AppError('renderFailed');
+        return post({ id: data.id, ok: true, result: inspectPdf(doc) satisfies Inspection });
+      }
       case 'images':
         return post({ id: data.id, ok: true, result: pageImages(data) });
       case 'imagePng': {

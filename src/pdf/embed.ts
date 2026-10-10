@@ -156,6 +156,14 @@ export function embedText(engine: Mupdf, doc: PDFDocument, page: PDFPage, t: Tex
   return widest;
 }
 
+/** Fills a box on the page with a solid colour, drawn over everything else. */
+export function embedFill(engine: Mupdf, doc: PDFDocument, page: PDFPage, box: [number, number, number, number], color: string) {
+  const [r, g, b] = rgb(color);
+  const [x0, y0, x1, y1] = box;
+  const local: Matrix = [x1 - x0, 0, 0, -(y1 - y0), x0, y1];
+  appendContent(doc, page, `q ${mx(toPdf(engine, page, local))} cm ${fmt(r)} ${fmt(g)} ${fmt(b)} rg 0 0 1 1 re f Q\n`);
+}
+
 export interface PictureBlock {
   png: Uint8Array;
   /** The picture's box in page points. */

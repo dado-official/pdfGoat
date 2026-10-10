@@ -35,6 +35,8 @@ function addEmbedded(engine: Mupdf, page: PDFPage, a: Annot) {
 
 /** Writes one comment onto a page. The page's coordinates are the same as the ones the comment uses. */
 export function addComment(engine: Mupdf, page: PDFPage, a: Annot) {
+  // Redaction areas are applied by `redactPage`, after everything else is on the page.
+  if (a.kind === 'redact') return;
   if (a.embed) return addEmbedded(engine, page, a);
   if (a.kind === 'link') {
     // Only addresses that are safe to open become links.

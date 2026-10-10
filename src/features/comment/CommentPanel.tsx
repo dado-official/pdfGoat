@@ -42,7 +42,8 @@ const FILE_KINDS: Record<string, MessageKey> = {
 };
 
 const kindLabel = (a: Annot): MessageKey =>
-  a.embed && a.kind === 'text' ? 'comment.kind.embedText'
+  a.kind === 'redact' ? 'comment.kind.redact'
+  : a.embed && a.kind === 'text' ? 'comment.kind.embedText'
   : a.embed && a.kind === 'stamp' ? 'comment.kind.embedImage'
   : (`comment.kind.${a.tag ?? a.kind}` as MessageKey);
 
@@ -119,7 +120,9 @@ export default function CommentPanel({ pages, fileComments, selectedId, onSelect
                   <span>{t(kindLabel(a))}</span>
                   <span className="comment-page">{t('comment.onPage', { number: e.page + 1 })}</span>
                 </button>
-                {selected ? (
+                {a.kind === 'redact' ? (
+                  <p className="comment-author">{t('redact.note')}</p>
+                ) : selected ? (
                   <CommentEditor
                     key={a.id}
                     mode={a.kind === 'link' ? 'link' : a.embed ? 'embed' : 'comment'}

@@ -83,6 +83,9 @@ export default function AnnotLayer({ size, rotation, scale, annots, tool, color,
         made = { ...base, kind: 'text', embed: true, box: [...box], fontSize: 12 };
         break;
       }
+      case 'redact':
+        if (dist > 6) made = { ...base, kind: 'redact', color: '#14161a', box: boxBetween(d.start, end) };
+        break;
       case 'link':
         if (dist > 6) made = { ...base, kind: 'link', color: '#3347c9', box: boxBetween(d.start, end) };
         break;
@@ -296,6 +299,13 @@ function Shape({ a, selected, onDown, onMove, onUp }: ShapeProps) {
         </g>
       );
     }
+    case 'redact':
+      return (
+        <g {...handlers} className="annot-shape" style={{ pointerEvents: 'all' }}>
+          <rect x={a.box[0]} y={a.box[1]} width={a.box[2] - a.box[0]} height={a.box[3] - a.box[1]} fill="rgb(20 22 26 / 0.5)" stroke="#e5484d" strokeWidth={1.2} strokeDasharray="4 3" />
+          {ring}
+        </g>
+      );
     case 'link':
       return (
         <g {...handlers} className="annot-shape" style={{ pointerEvents: 'all' }}>
@@ -326,6 +336,6 @@ function Draft({ tool, color, d }: { tool: NonNullable<Tool>; color: string; d: 
   if (tool === 'line' || tool === 'arrow') return <line {...common} x1={d.start[0]} y1={d.start[1]} x2={end[0]} y2={end[1]} />;
   const b = boxBetween(d.start, end);
   if (tool === 'circle') return <ellipse {...common} cx={(b[0] + b[2]) / 2} cy={(b[1] + b[3]) / 2} rx={(b[2] - b[0]) / 2} ry={(b[3] - b[1]) / 2} />;
-  if (tool === 'square' || tool === 'text' || tool === 'stamp' || tool === 'signature' || tool === 'initials' || tool === 'embedText' || tool === 'embedImage' || tool === 'link') return <rect {...common} x={b[0]} y={b[1]} width={b[2] - b[0]} height={b[3] - b[1]} />;
+  if (tool === 'square' || tool === 'text' || tool === 'stamp' || tool === 'signature' || tool === 'initials' || tool === 'embedText' || tool === 'embedImage' || tool === 'link' || tool === 'redact') return <rect {...common} x={b[0]} y={b[1]} width={b[2] - b[0]} height={b[3] - b[1]} />;
   return null;
 }

@@ -17,7 +17,9 @@ export type AnnotKind =
   | 'arrow'
   | 'stamp'
   /** A clickable area; `contents` holds the address. */
-  | 'link';
+  | 'link'
+  /** An area to be removed for good when saving; `contents` is not used. */
+  | 'redact';
 
 export type Pt = [number, number];
 

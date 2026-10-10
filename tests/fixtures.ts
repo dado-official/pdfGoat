@@ -282,3 +282,15 @@ export async function makeContentPdf(): Promise<Uint8Array> {
   page.drawImage(picture, { x: 100, y: 500, width: 120, height: 80 });
   return doc.save();
 }
+
+/** Whether a PDF asks for a password, and whether the given one opens it. */
+export async function passwordInfo(bytes: Uint8Array, password = ''): Promise<{ asks: boolean; opens: boolean }> {
+  const { PDFDocument: MuPdf } = await import('mupdf');
+  const doc = new MuPdf(bytes);
+  try {
+    const asks = doc.needsPassword();
+    return { asks, opens: !asks || doc.authenticatePassword(password) > 0 };
+  } finally {
+    doc.destroy();
+  }
+}

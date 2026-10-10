@@ -6,6 +6,7 @@ import type { Annot } from '../core/annotations';
 import type { PageRef } from '../core/types';
 import type { BuildSource } from './build';
 import type { FormField } from './forms';
+import type { Inspection } from './protect';
 import type {
   Box,
   FileComment,
@@ -17,6 +18,7 @@ import type {
   ViewResponse,
 } from './view.worker';
 
+export type { Inspection };
 export type { Box, FileComment, FormField, OutlineNode, PageLink, TextLine };
 
 export interface SourceDoc extends BuildSource {
@@ -186,3 +188,6 @@ export const getImagePng = (doc: SourceDoc, srcIndex: number, index: number) =>
 /** The form fields on one page. */
 export const getFields = (doc: SourceDoc, srcIndex: number) =>
   call<FormField[]>({ type: 'fields', docId: doc.id, pageIndex: srcIndex });
+
+/** What a file carries along: metadata, comments, attachments and more. */
+export const inspectDoc = (doc: SourceDoc) => call<Inspection>({ type: 'inspect', docId: doc.id });

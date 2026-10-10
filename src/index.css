@@ -21,6 +21,7 @@
   --rail-width: 240px;
   --narrow: 'Geist Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
   color-scheme: light;
+  accent-color: var(--signal);
 }
 
 * { box-sizing: border-box; }
@@ -896,3 +897,24 @@ textarea.form-field { padding-top: 2px; resize: none; line-height: 1.2; }
 .reader-bar .panel-toggle { display: inline-flex; align-items: center; gap: 6px; }
 .page-tools { margin-bottom: 14px; border: 1px solid var(--edge); border-radius: var(--radius); }
 .page-tools .ribbon-button:disabled { opacity: 0.45; cursor: default; }
+
+/* Page and protection dialogs */
+.page-dialog { width: min(560px, calc(100vw - 32px)); }
+.dialog-scope { margin: -6px 0 12px; color: var(--dust); font-size: 14px; }
+.dialog-fields { display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px; }
+.dialog-fields label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.dialog-fields label.check { flex-direction: row; align-items: center; gap: 8px; }
+.dialog-fields input:not([type='checkbox']):not([type='range']), .dialog-fields select { padding: 7px 9px; border: 1px solid var(--edge); border-radius: var(--radius); background: var(--paper); font: inherit; }
+.dialog-fields small, .dialog-hint { margin: 0; color: var(--dust); font-size: 13px; }
+.dialog-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.dialog-row > label { flex: 1 1 120px; }
+.permissions { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 10px 12px; border: 1px solid var(--edge); border-radius: var(--radius); }
+.permissions legend { padding: 0 6px; font-size: 13px; color: var(--dust); }
+.count { color: var(--dust); }
+.report { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.report dl { margin: 6px 0 0; display: grid; gap: 4px; font-size: 13px; }
+.report dl > div { display: flex; gap: 10px; }
+.report dt { flex: none; width: 110px; color: var(--dust); }
+.report dd { margin: 0; overflow-wrap: anywhere; }
+.mark-list ul { margin: 4px 0 0; padding: 0; list-style: none; }
+.mark-list li { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; font-size: 14px; }

@@ -7,6 +7,8 @@ import { applyFields } from './forms';
 import { embedText, textWidth } from './embed';
 import { applyPageBox } from './pagebox';
 import { applyEdits } from './edit';
+import { cleanPdf, redactPage } from './protect';
+import { encryptionOptions, isCleaning, type Cleaning, type Protection } from '../core/protect';
 import { markPosition, markText } from '../core/marks';
 import type { PageRef } from '../core/types';
 
@@ -81,8 +83,9 @@ function hasPage(doc: PDFDocument, index: number): boolean {
 const title = (src: BuildSource) => (src.name ?? 'PDF').replace(/\.pdf$/i, '');
 
 // MuPDF keeps the protection of a file when it saves it. The result of several files could only
-// carry the protection of the first one, so every result is saved without protection.
-const SAVE_OPTIONS = 'garbage=deduplicate,compress,encrypt=none';
+// carry the protection of the first one, so every result is saved without protection unless the
+// user sets a new one.
+const saveOptions = (p: Protection | null | undefined) => `garbage=deduplicate,compress,${encryptionOptions(p ?? null)}`;
 
 export interface BuildOptions {
   /** Write form fields into the pages, so they can no longer be changed. */
@@ -91,6 +94,10 @@ export interface BuildOptions {
   date?: string;
   /** For building a single page of a longer document: its number and the number of pages, for page numbers. */
   numbering?: { number: number; total: number };
+  /** A password and permissions for the saved file; none saves it unprotected. */
+  protect?: Protection | null;
+  /** What to take out of the saved file. */
+  clean?: Cleaning;
 }
 
 /** Builds a new PDF from a list of pages (possibly from several documents). */
@@ -177,6 +184,12 @@ export async function buildPdf(
       for (const a of p.annots) addComment(engine, page, a);
     });
 
+    // Real redaction comes after everything else is on the page, so inserted text under an area goes too.
+    pages.forEach((p, i) => {
+      const boxes = p.annots?.filter((a) => a.kind === 'redact').map((a) => a.box);
+      if (boxes?.length) redactPage(engine, out.loadPage(i), boxes);
+    });
+
     // Cropping and resizing, then the texts that belong at fixed places of the finished page.
     const date = options.date ?? new Date().toISOString().slice(0, 10);
     pages.forEach((p, i) => {
@@ -213,9 +226,10 @@ export async function buildPdf(
     // "Flatten form": the fields become part of the page, so they can no longer be changed.
     if (options.flatten) out.bake(false, true);
 
+    if (options.clean && isCleaning(options.clean)) cleanPdf(out, options.clean);
     out.setMetaData('info:Producer', 'PDFgoat');
     // The result lives in the engine's memory, so it is copied out before that is freed.
-    const result = out.saveToBuffer(SAVE_OPTIONS).asUint8Array().slice();
+    const result = out.saveToBuffer(saveOptions(options.protect)).asUint8Array().slice();
     onProgress?.(total, total);
     return result;
   } finally {

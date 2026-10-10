@@ -1,7 +1,7 @@
 import { expect, test as base, type Download, type Page } from '@playwright/test';
 import { unzipSync } from 'fflate';
 import { readFile, rm, writeFile } from 'node:fs/promises';
-import { annotationsOf, describePdf, makeContentPdf, fieldCount, formValues, imageCount, textOf, tinyPng, makeCommentedPdf, makeFormPdf, makeHalfBrokenPdf, makePdf, makeProtectedPdf, makeRichPdf } from '../fixtures';
+import { annotationsOf, describePdf, makeContentPdf, passwordInfo, fieldCount, formValues, imageCount, textOf, tinyPng, makeCommentedPdf, makeFormPdf, makeHalfBrokenPdf, makePdf, makeProtectedPdf, makeRichPdf } from '../fixtures';
 
 const pdfFile = (name: string, bytes: Uint8Array) => ({ name, mimeType: 'application/pdf', buffer: Buffer.from(bytes) });
 
@@ -714,9 +714,9 @@ test.describe('comments', () => {
     await tool(page, 'Rechteck').click();
     await drag(page, [100, 120], [300, 200]);
     await tool(page, 'Pfeil').click();
-    await drag(page, [100, 240], [300, 290]);
+    await drag(page, [100, 210], [300, 250]);
     await tool(page, 'Zeichnen').click();
-    await drag(page, [100, 320], [250, 380]);
+    await drag(page, [100, 260], [250, 300]);
     await expect(panelButton(page)).toHaveText('Kommentare (3)');
     expect((await save(page))[0].map((a) => a.type)).toEqual(['Square', 'Line', 'Ink']);
   });
@@ -952,7 +952,7 @@ test.describe('inserting and page tools', () => {
     await sheet(page).click({ position: { x: 150, y: 200 } });
     await expect(page.locator('.annot-layer image')).toHaveCount(1);
     await tool(page, 'Link').click();
-    await drag(page, [300, 300], [450, 340]);
+    await drag(page, [300, 230], [450, 270]);
     await page.getByRole('button', { name: /^Kommentare \(/ }).click();
     const field = page.getByRole('textbox', { name: 'Adresse des Links' });
     await field.fill('https://example.org/');
@@ -1073,6 +1073,81 @@ test.describe('changing existing content', () => {
     await page.getByTestId('replace-input').setInputFiles({ name: 'neu.png', mimeType: 'image/png', buffer: tinyPng() });
     await expect(page.locator('.edit-picture')).toBeVisible();
     expect(await imageCount(await download(page))).toBe(1);
+  });
+});
+
+test.describe('protecting', () => {
+  const tool = (page: Page, name: string) => page.getByRole('button', { name, exact: true });
+
+  async function openContent(page: Page, bytes?: Uint8Array) {
+    await page.getByTestId('file-input').setInputFiles(pdfFile('geheim.pdf', bytes ?? (await makeContentPdf())));
+    await expect(page.locator('.card img').first()).toBeVisible();
+    await page.getByRole('button', { name: 'Lesen', exact: true }).click();
+    await expect(page.locator('.read-page img').first()).toBeVisible();
+  }
+
+  async function download(page: Page) {
+    const file = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'PDF speichern' }).click();
+    return downloadBytes(await file);
+  }
+
+  test('redacts the matches of a search for good', async ({ app: page }) => {
+    await openContent(page);
+    await page.getByRole('searchbox', { name: 'Im Dokument suchen' }).fill('Erste');
+    await expect(page.locator('.search-state')).toHaveText('1 von 1');
+    await tool(page, 'Treffer schwärzen').click();
+    await expect(page.locator('.annot-layer rect[fill^="rgb(20"]')).toHaveCount(1);
+    await page.getByRole('button', { name: /^Kommentare \(/ }).click();
+    await expect(page.getByText('Wird beim Speichern endgültig entfernt', { exact: false }).first()).toBeVisible();
+    const bytes = await download(page);
+    const text = (await textOf(bytes))[0];
+    expect(text).not.toContain('Erste');
+    expect(text).toContain('Zweite Zeile');
+    expect(new TextDecoder('latin1').decode(bytes)).not.toContain('Erste');
+  });
+
+  test('draws a redaction area and takes it back', async ({ app: page }) => {
+    await openContent(page);
+    await tool(page, 'Schwärzen').click();
+    const box = (await page.locator('.read-page').first().boundingBox())!;
+    await page.mouse.move(box.x + 100, box.y + 100);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 300, box.y + 160, { steps: 5 });
+    await page.mouse.up();
+    await expect(page.getByRole('button', { name: /^Kommentare \(1\)/ })).toBeVisible();
+    await page.getByRole('button', { name: 'Rückgängig' }).click();
+    await expect(page.getByRole('button', { name: /^Kommentare \(0\)/ })).toBeVisible();
+  });
+
+  test('saves with a password to open', async ({ app: page }) => {
+    await openContent(page);
+    await tool(page, 'Schutz und Prüfung').click();
+    await page.getByLabel('Passwort zum Öffnen', { exact: true }).fill('öffne-mich');
+    await page.getByRole('button', { name: 'Übernehmen' }).click();
+    const bytes = await download(page);
+    expect(await passwordInfo(bytes, 'falsch')).toEqual({ asks: true, opens: false });
+    expect(await passwordInfo(bytes, 'öffne-mich')).toEqual({ asks: true, opens: true });
+  });
+
+  test('refuses a password that the engine cannot carry', async ({ app: page }) => {
+    await openContent(page);
+    await tool(page, 'Schutz und Prüfung').click();
+    await page.getByLabel('Passwort zum Öffnen', { exact: true }).fill('a,b');
+    await expect(page.getByRole('alert')).toContainText('kein Komma');
+    await expect(page.getByRole('button', { name: 'Übernehmen' })).toBeDisabled();
+  });
+
+  test('shows what a file carries and removes comments when asked', async ({ app: page }) => {
+    await openContent(page, await makeCommentedPdf());
+    await tool(page, 'Schutz und Prüfung').click();
+    await page.getByRole('tab', { name: 'Vor dem Weitergeben prüfen' }).click();
+    await expect(page.getByRole('dialog').getByText('geheim.pdf')).toBeVisible();
+    await expect(page.getByLabel(/Alle Kommentare/)).toBeVisible();
+    await expect(page.getByText('(1)')).toBeVisible();
+    await page.getByLabel(/Alle Kommentare/).check();
+    await page.getByRole('button', { name: 'Übernehmen' }).click();
+    expect(await annotationsOf(await download(page))).toEqual([[]]);
   });
 });
 

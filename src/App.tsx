@@ -21,6 +21,8 @@ import { useFileDrop, useShortcuts } from './ui/useWindowEvents';
 import DropZone from './features/open/DropZone';
 import PasswordDialog from './features/open/PasswordDialog';
 import Reader from './features/read/Reader';
+import ProtectDialog from './features/protect/ProtectDialog';
+import { isCleaning, isProtected, noCleaning, type Cleaning, type Protection } from './core/protect';
 import { finalSize } from './core/pages';
 import { renderFinal } from './pdf/render';
 import PageTools from './features/edit/PageTools';
@@ -66,6 +68,11 @@ export default function App() {
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [splitOpen, setSplitOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
+  const [protectOpen, setProtectOpen] = useState(false);
+  // Protection and cleaning apply to everything that is saved, in every tab.
+  const [protect, setProtect] = useState<Protection | null>(null);
+  const [clean, setClean] = useState<Cleaning>(noCleaning);
+  const protectActive = isProtected(protect) || isCleaning(clean);
   const [pageDialog, setPageDialog] = useState<'mark' | 'crop' | 'resize' | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [passwordAsk, setPasswordAsk] = useState<{ name: string; wrong: boolean; answer: (p: string | null) => void } | null>(null);
@@ -232,7 +239,7 @@ export default function App() {
 
   const save = () =>
     run(t('busy.saving'), async (job) => {
-      download(await buildPdf(pages, docs, { ...job, flatten, date }), `${base()}.pdf`);
+      download(await buildPdf(pages, docs, { ...job, flatten, date, protect, clean }), `${base()}.pdf`);
     });
 
   // Today's date for header and footer texts that contain {date}.
@@ -290,7 +297,7 @@ export default function App() {
     run(t('busy.splitting'), async (job) => {
       if (plan === 'selection') {
         const chosen = pages.filter((p) => selected.has(p.id));
-        download(await buildPdf(chosen, docs, { ...job, flatten, date }), `${base()}-${t('file.selection')}.pdf`);
+        download(await buildPdf(chosen, docs, { ...job, flatten, date, protect, clean }), `${base()}-${t('file.selection')}.pdf`);
         return;
       }
       const files = [];
@@ -301,6 +308,8 @@ export default function App() {
             signal: job.signal,
             flatten,
             date,
+            protect,
+            clean,
             onProgress: (f) => job.onProgress?.((i + f) / plan.length),
           }),
         });
@@ -362,6 +371,7 @@ export default function App() {
     { id: 'mark', label: t('cmd.mark'), keywords: t('cmd.mark.kw'), enabled: hasPages, run: () => setPageDialog('mark') },
     { id: 'crop', label: t('cmd.crop'), keywords: t('cmd.crop.kw'), enabled: hasPages, run: () => setPageDialog('crop') },
     { id: 'resize', label: t('cmd.resize'), keywords: t('cmd.resize.kw'), enabled: hasPages, run: () => setPageDialog('resize') },
+    { id: 'protect', label: t('cmd.protect'), keywords: t('cmd.protect.kw'), enabled: !!tab, run: () => setProtectOpen(true) },
     { id: 'selectAll', label: t('cmd.selectAll'), enabled: hasPages && selected.size < pages.length, run: () => dispatch({ type: 'selectAll' }) },
     { id: 'selectNone', label: t('cmd.selectNone'), enabled: selected.size > 0, run: () => dispatch({ type: 'clearSelection' }) },
     { id: 'rotateRight', label: t('cmd.rotateRight'), keywords: t('cmd.rotate.kw'), enabled: selected.size > 0, run: () => dispatch({ type: 'rotate', ids: selectedInOrder(state), delta: 90 }) },
@@ -511,6 +521,8 @@ export default function App() {
                 onAnnotate={(id, annots, removed) => dispatch({ type: 'annotate', id, annots, removed })}
                 onFill={(id, fields) => dispatch({ type: 'fill', id, fields })}
                 onEdit={(id, edits) => dispatch({ type: 'edit', id, edits })}
+                onProtect={() => setProtectOpen(true)}
+                protectActive={protectActive}
               />
             ) : tab ? (
               <>
@@ -520,6 +532,8 @@ export default function App() {
                 onMark={() => setPageDialog('mark')}
                 onCrop={() => setPageDialog('crop')}
                 onResize={() => setPageDialog('resize')}
+                onProtect={() => setProtectOpen(true)}
+                protectActive={protectActive}
               />
               <PageGrid
                 key={tab.id}
@@ -582,6 +596,18 @@ export default function App() {
         <MergeDialog tabs={ws.tabs} onMerge={mergeTabs} onClose={() => setMergeOpen(false)} />
       )}
 
+      {protectOpen && (
+        <ProtectDialog
+          protect={protect}
+          clean={clean}
+          docs={[...new Set(pages.map((p) => p.docId))].filter((id) => docs[id] && !docs[id].generated).map((id) => docs[id])}
+          onApply={(p, c) => {
+            setProtect(p);
+            setClean(c);
+          }}
+          onClose={() => setProtectOpen(false)}
+        />
+      )}
       {pageDialog === 'mark' && (
         <MarkDialog
           scope={scope}
