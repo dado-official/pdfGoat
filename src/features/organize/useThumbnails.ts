@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PageRef } from '../../core/types';
-import { renderPage, type SourceDoc } from '../../pdf/lazy';
+import { renderPage, type SourceDoc } from '../../pdf/view';
 
 type ThumbPage = Pick<PageRef, 'docId' | 'srcIndex'>;
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PageRef } from '../../core/types';
 import { useI18n } from '../../i18n/context';
-import { renderPage, type SourceDoc } from '../../pdf/lazy';
+import { renderPage, type SourceDoc } from '../../pdf/view';
 
 interface Props {
   doc: SourceDoc;

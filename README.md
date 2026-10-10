@@ -3,7 +3,7 @@
 **Eats your PDFs. Never your data.**
 
 Kostenloser PDF-Editor, der komplett im Browser läuft. Dateien werden nie hochgeladen:
-PDF.js zeigt die Seiten an, MuPDF schreibt die neue PDF, alles lokal auf deinem Gerät.
+MuPDF zeigt die Seiten an und schreibt die neue PDF, alles lokal auf deinem Gerät.
 
 ## Was PDFgoat kann
 
@@ -30,7 +30,6 @@ npm run check    # alles zusammen, wie in der CI
 ```
 
 Die Browser-Tests nutzen lokal das installierte Google Chrome, in der CI das Chromium von Playwright.
-`dev` und `build` kopieren vorher die Laufzeitdateien von PDF.js nach `public/pdfjs/` (nicht im Repo).
 
 Wie das Projekt aufgebaut ist und warum, steht in [docs/PLAN.md](docs/PLAN.md).
 
@@ -49,18 +48,17 @@ Die Seite ist rein statisch (`dist/`) und wird über **Cloudflare Pages** veröf
 - Der Build schreibt eine strenge Content-Security-Policy in die Seite und in `dist/_headers`
   (beides aus `vite.config.ts`). `connect-src 'self'` lässt den Browser jede Verbindung zu fremden Servern ablehnen.
 - Jeder Browser-Test bricht ab, sobald die Seite etwas anderes tut als Dateien vom eigenen Server zu laden (nur GET).
-- PDF.js lädt Schriften, Zeichentabellen und Bilddecoder vom eigenen Server, nie von einem CDN.
+- Die Engine (WebAssembly) kommt vom eigenen Server, nie von einem CDN.
 
 ## Technik
 
-React 19 + TypeScript + Vite, [PDF.js](https://mozilla.github.io/pdf.js/) (Apache 2.0, Legacy-Build für ältere Browser),
-[MuPDF.js](https://mupdf.com/) (AGPL, als WebAssembly), [fflate](https://github.com/101arrowz/fflate) (MIT) für ZIP.
-MuPDF und fflate werden erst beim Speichern nachgeladen. pdf-lib (MIT) dient nur noch in den Tests als zweiter,
+React 19 + TypeScript + Vite, [MuPDF.js](https://mupdf.com/) (AGPL, als WebAssembly), [fflate](https://github.com/101arrowz/fflate) (MIT) für ZIP.
+MuPDF wird erst beim Öffnen einer Datei, fflate erst beim Aufteilen nachgeladen. pdf-lib (MIT) dient nur noch in den Tests als zweiter,
 unabhängiger Leser, der die gespeicherten Dateien prüft.
 
 - `src/core/`: reine Logik ohne React und DOM (Seitenbereiche, Größenlimits, Fehlercodes, Typen)
 - `src/state/`: Seitenliste, Auswahl, Rückgängig und Wiederholen als Reducer
-- `src/pdf/`: Anbindung an PDF.js (öffnen, rendern) und MuPDF (neue PDF schreiben, Formulare, Links und Lesezeichen mitnehmen)
+- `src/pdf/`: Anbindung an MuPDF: öffnen und rendern (`view.ts`), neue PDF schreiben (`engine.ts`, `build.ts`), Formulare, Links und Lesezeichen mitnehmen
 - `src/features/`: Oberfläche je Funktion (`open`, `organize`, `merge-split`)
 - `src/i18n/`: Texte auf Deutsch und Englisch, `src/ui/`: gemeinsame Bausteine
 - Unit-Tests liegen neben dem Modul (`*.test.ts`), Browser-Tests in `tests/e2e/`

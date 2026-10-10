@@ -1,6 +1,6 @@
 import { useState, type DragEvent } from 'react';
 import type { PageRef } from '../../core/types';
-import type { SourceDoc } from '../../pdf/lazy';
+import type { SourceDoc } from '../../pdf/view';
 import type { EditorAction, EditorState } from '../../state/editor';
 import { thumbKey } from './useThumbnails';
 import PageCard from './PageCard';

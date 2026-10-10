@@ -1,5 +1,6 @@
 // Writes new PDFs with MuPDF. No DOM and no PDF.js here, so it runs in Node tests too.
 import type { PDFDocument } from 'mupdf';
+import { loadMupdf } from './mupdf';
 import { AppError } from '../core/errors';
 import type { PageRef } from '../core/types';
 
@@ -16,7 +17,7 @@ export interface BuildSource {
 }
 
 // The engine and fflate are only needed when saving, so they load on demand.
-const loadEngine = async () => ({ ...(await import('mupdf')), ...(await import('./merge')) });
+const loadEngine = async () => ({ ...(await loadMupdf()), ...(await import('./merge')) });
 type Engine = Awaited<ReturnType<typeof loadEngine>>;
 
 // Bytes per source, so repeated saves do not read the file again.

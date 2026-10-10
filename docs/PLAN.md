@@ -179,6 +179,8 @@ Fertig, wenn alle Tests aus M1 mit der neuen Engine grün sind und zusätzlich T
 
 ### M3 – Lesen
 
+Stand: Schritt 1 ist fertig (die Engine rendert, PDF.js ist entfernt, siehe Umsetzungsstand). Reihenfolge der übrigen Schritte: fortlaufende Seitenansicht mit Zoom, Textebene mit Suche und Kopieren, Seitenleiste mit Lesezeichen und Links, Drucken, Arbeitsansicht mit Befehlssuche, mehrere Dokumente als Reiter.
+
 Ab hier fühlt sich PDFgoat wie ein Editor an und nicht wie ein Seitensortierer.
 
 - Fortlaufende Seitenansicht, Zoom (Breite, ganze Seite, Prozent), Blättern per Tastatur
@@ -319,12 +321,14 @@ Erledigt aus M2:
 - **Verschlüsselte PDFs öffnen mit Passwortabfrage** (`PasswordDialog`, wiederholt bei falschem Passwort, „Überspringen“ öffnet nichts). Dateien mit nur Besitzer-Passwort öffnen direkt. Gespeichert wird immer ohne Schutz, ein Hinweis beim Öffnen sagt das. Grund: MuPDF behält den Schutz beim Speichern, beim Zusammenfügen würde aber nur der Schutz der ersten Datei gelten. Passwort setzen kommt mit M7.
 - **Engine läuft im Web Worker** (`src/pdf/engine.ts` auf der Seite, `engine.worker.ts` im Worker, `build.ts` bleibt reine Logik und ist in Node testbar). Fortschritt wird angezeigt, „Abbrechen“ beendet den Worker. Nur Speichern und Aufteilen laufen bisher darüber, Rendern und Lesen folgen mit M3.
 - **Änderungsliste** (`src/core/changes.ts`, `state/editor.ts`): Der Editor hält die Befehle (`add`, `rotate`, `remove`, `move`, `moveTo`, `reverse`), die Seitenliste wird daraus abgeleitet. Rückgängig nimmt den letzten Befehl weg und baut die Seitenliste neu auf, Wiederholen legt ihn zurück. Die Grenze von 50 Schritten entfällt. Neue Befehle für Kommentare, Formularwerte und Schwärzen kommen in M4 bis M7 als weitere Typen dazu. Die Engine bekommt sie noch nicht: Speichern nutzt weiter nur die Seitenliste, das ändert sich mit dem ersten Inhaltsbefehl.
+- **M3, Schritt 1: Die Engine rendert, PDF.js ist entfernt.** Ein zweiter Worker (`view.worker.ts`, Seite: `view.ts`) hält die geöffneten Dateien, fragt Passwörter ab und rendert Seiten als PNG. Speichern läuft weiter im ersten Worker, damit lange Aufträge die Vorschau nicht anhalten. Die Dateien liegen damit zweimal im Speicher (einmal im Renderer, einmal als Rohbytes für das Speichern). Gründe für die Nebenwirkungen: MuPDF lädt per Top-Level-await und wird deshalb erst bei der ersten Anfrage importiert, und seine Hinweise zu reparierten Dateien gehen ins Debug-Log.
 - pdf-lib ist aus der App entfernt und dient nur noch in den Tests als zweiter, unabhängiger Leser.
 
-Offen aus M2:
+Offen aus M2: nichts mehr. Die Prüfung mit echten großen PDFs (Speicher und Geschwindigkeit im Browser) wurde bewusst nicht gemacht und bleibt als Risiko bestehen.
 
-- Prüfung mit echten großen PDFs im Browser.
-- Bekannte Lücke beim Zusammenfügen: Pop-up-Fenster von Kommentaren und Sprungziele in Schaltflächen der hinzugefügten Datei werden nicht übernommen, die Kommentare selbst schon.
+Bekannte Lücke aus M2:
+
+- Beim Zusammenfügen: Pop-up-Fenster von Kommentaren und Sprungziele in Schaltflächen der hinzugefügten Datei werden nicht übernommen, die Kommentare selbst schon.
 
 Noch nicht umgesetzt:
 

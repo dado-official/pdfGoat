@@ -27,7 +27,6 @@ dist-ssr
 *.zip
 
 # PDF.js-Dateien, werden vor dev/build aus node_modules kopiert
-public/pdfjs/
 
 # Testergebnisse
 test-results/

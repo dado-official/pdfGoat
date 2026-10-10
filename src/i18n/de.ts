@@ -24,7 +24,6 @@ export const de = {
   'alert.close': 'Meldung schließen',
   'drop.overlay': 'PDF loslassen zum Hinzufügen',
   'footer.intro': 'PDFgoat ist kostenlos und läuft komplett in deinem Browser. Verwendet',
-  'footer.and': 'und',
 
   'hero.title': 'PDFs bearbeiten, ohne Upload.',
   'hero.text':

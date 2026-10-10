@@ -25,7 +25,6 @@ export const en: Record<MessageKey, string> = {
   'alert.close': 'Dismiss message',
   'drop.overlay': 'Drop PDF to add it',
   'footer.intro': 'PDFgoat is free and runs entirely in your browser. Built with',
-  'footer.and': 'and',
 
   'hero.title': 'Edit PDFs without uploading.',
   'hero.text':

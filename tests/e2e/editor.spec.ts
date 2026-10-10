@@ -239,14 +239,14 @@ test('renders previews only for pages near the visible area', async ({ app: page
   await expect(last.locator('img')).toBeVisible();
 });
 
-test('shows a PDF with an embedded font and loads PDF.js only when a file is opened', async ({ app: page }) => {
+test('shows a PDF with an embedded font and starts the PDF engine only when a file is opened', async ({ app: page }) => {
   const scripts = () => page.evaluate(() => performance.getEntriesByType('resource').map((r) => r.name));
-  expect((await scripts()).some((name) => name.includes('pdf.worker'))).toBe(false);
+  expect((await scripts()).some((name) => name.includes('view.worker'))).toBe(false);
 
   const bytes = await readFile(new URL('../files/embedded-font.pdf', import.meta.url));
   await page.getByTestId('file-input').setInputFiles(pdfFile('schrift.pdf', bytes));
   await expect(card(page, 0).locator('img')).toBeVisible();
-  expect((await scripts()).some((name) => name.includes('pdf.worker'))).toBe(true);
+  expect((await scripts()).some((name) => name.includes('view.worker'))).toBe(true);
 });
 
 test('a damaged page shows a placeholder, and the good pages can still be saved', async ({ page }) => {

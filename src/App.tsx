@@ -5,7 +5,7 @@ import { toMegabytes } from './core/limits';
 import { editorReducer, initialState, selectedInOrder } from './state/editor';
 import { zip } from './pdf/build';
 import { buildPdf, CancelledError, type JobOptions } from './pdf/engine';
-import { closePdf, openPdf, type OpenedPdf, type SourceDoc } from './pdf/lazy';
+import { closePdf, openPdf, type OpenedPdf, type SourceDoc } from './pdf/view';
 import { useI18n } from './i18n/context';
 import { download } from './ui/download';
 import GoatMark from './ui/GoatMark';
@@ -294,7 +294,6 @@ export default function App() {
 
           <footer>
             {t('footer.intro')}{' '}
-            <a href="https://mozilla.github.io/pdf.js/" target="_blank" rel="noopener noreferrer">PDF.js</a> (Apache 2.0) {t('footer.and')}{' '}
             <a href="https://mupdf.com/" target="_blank" rel="noopener noreferrer">MuPDF</a> (AGPL).
           </footer>
         </div>

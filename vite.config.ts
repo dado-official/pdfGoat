@@ -3,7 +3,7 @@ import { defineConfig, type Plugin } from 'vite'
 
 // The browser itself enforces the privacy promise: nothing may be loaded from or sent to
 // another origin. `connect-src 'self'` blocks every fetch, XHR, WebSocket and beacon to a
-// foreign server. 'wasm-unsafe-eval' is needed for the image decoders of PDF.js.
+// foreign server. 'wasm-unsafe-eval' is needed to run the PDF engine (WebAssembly).
 const CSP = [
   "default-src 'none'",
   "script-src 'self' 'wasm-unsafe-eval'",
