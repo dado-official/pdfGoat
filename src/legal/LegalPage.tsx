@@ -85,7 +85,7 @@ function Privacy({ lang }: { lang: Lang }) {
         <p>Die Dateien der Seite werden von {o.host} ausgeliefert. Dabei verarbeitet der Anbieter technisch notwendige Daten in Server-Protokollen, etwa die IP-Adresse, Datum und Uhrzeit, die angeforderte Datei und Angaben zu deinem Browser. Rechtsgrundlage ist unser berechtigtes Interesse an einem sicheren und stabilen Betrieb (Art. 6 Abs. 1 lit. f DSGVO). Der Anbieter kann Daten auch außerhalb der EU verarbeiten; Näheres steht in seinen eigenen Datenschutzhinweisen. Der Betreiber dieser Seite wertet diese Protokolle nicht aus und führt sie nicht mit anderen Daten zusammen.</p>
       </Section>
       <Section title="Deine Rechte">
-        <p>Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit und Widerspruch. Du kannst dich außerdem bei einer Datenschutz-Aufsichtsbehörde beschweren; in Österreich ist das die Datenschutzbehörde (dsb.gv.at). Schreib bei Fragen an {o.email ? <a href={`mailto:${o.email}`}>{o.email}</a> : <em>E-Mail fehlt</em>}.</p>
+        <p>Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit und Widerspruch. Du kannst dich außerdem bei einer Datenschutz-Aufsichtsbehörde beschweren; in Italien ist das der Garante per la protezione dei dati personali (garanteprivacy.it). Schreib bei Fragen an {o.email ? <a href={`mailto:${o.email}`}>{o.email}</a> : <em>E-Mail fehlt</em>}.</p>
       </Section>
     </>
   ) : (
@@ -113,7 +113,7 @@ function Privacy({ lang }: { lang: Lang }) {
         <p>The files of the page are delivered by {o.host}. In doing so the provider processes technically necessary data in server logs, such as the IP address, date and time, the file requested and details about your browser. The legal basis is our legitimate interest in secure and stable operation (Art. 6(1)(f) GDPR). The provider may also process data outside the EU; details are in its own privacy notices. The operator of this site does not evaluate these logs and does not combine them with other data.</p>
       </Section>
       <Section title="Your rights">
-        <p>You have the right of access, rectification, erasure, restriction of processing, data portability and objection. You can also lodge a complaint with a data protection authority; in Austria that is the Datenschutzbehörde (dsb.gv.at). For questions write to {o.email ? <a href={`mailto:${o.email}`}>{o.email}</a> : <em>email missing</em>}.</p>
+        <p>You have the right of access, rectification, erasure, restriction of processing, data portability and objection. You can also lodge a complaint with a data protection authority; in Italy that is the Garante per la protezione dei dati personali (garanteprivacy.it). For questions write to {o.email ? <a href={`mailto:${o.email}`}>{o.email}</a> : <em>email missing</em>}.</p>
       </Section>
     </>
   );
@@ -123,12 +123,9 @@ function Imprint({ lang }: { lang: Lang }) {
   const o = OPERATOR;
   return lang === 'de' ? (
     <>
-      <Section title="Anbieter und Medieninhaber">
-        <p>Angaben nach § 5 E-Commerce-Gesetz (ECG) und Offenlegung nach § 25 Mediengesetz:</p>
+      <Section title="Anbieter">
+        <p>PDFgoat wird von einer Privatperson betrieben, ohne Unternehmen. Die Seite ist kostenlos und verfolgt keinen Erwerbszweck. Die Angaben folgen den Informationspflichten für Anbieter von Diensten im Netz (in Anlehnung an Art. 7 des italienischen Gesetzesdekrets 70/2003).</p>
         <Address o={o} lang={lang} />
-      </Section>
-      <Section title="Grundlegende Richtung">
-        <p>Information über PDFgoat und Bereitstellung eines kostenlosen PDF-Editors, der im Browser läuft.</p>
       </Section>
       <Section title="Kontakt">
         <p>Du erreichst den Betreiber schnell und direkt per E-Mail an {o.email ? <a href={`mailto:${o.email}`}>{o.email}</a> : <em>E-Mail fehlt</em>}.</p>
@@ -139,12 +136,9 @@ function Imprint({ lang }: { lang: Lang }) {
     </>
   ) : (
     <>
-      <Section title="Provider and media owner">
-        <p>Details under § 5 of the Austrian E-Commerce Act (ECG) and disclosure under § 25 of the Austrian Media Act:</p>
+      <Section title="Provider">
+        <p>PDFgoat is run by a private individual, not a business. The site is free and has no commercial purpose. The details follow the information duties for providers of online services (in line with Art. 7 of Italian Legislative Decree 70/2003).</p>
         <Address o={o} lang={lang} />
-      </Section>
-      <Section title="Basic orientation">
-        <p>Information about PDFgoat and provision of a free PDF editor that runs in the browser.</p>
       </Section>
       <Section title="Contact">
         <p>You can reach the operator quickly and directly by email at {o.email ? <a href={`mailto:${o.email}`}>{o.email}</a> : <em>email missing</em>}.</p>

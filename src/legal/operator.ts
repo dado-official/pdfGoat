@@ -24,7 +24,7 @@ export const OPERATOR: Operator = {
   name: '',
   street: '',
   city: '',
-  country: '',
+  country: 'Italien',
   email: '',
   phone: '',
   sourceUrl: '',
