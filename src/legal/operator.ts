@@ -21,11 +21,11 @@ export interface Operator {
 }
 
 export const OPERATOR: Operator = {
-  name: '',
-  street: '',
-  city: '',
+  name: 'Daniel Nagler',
+  street: 'Freines 2',
+  city: 'La Valle',
   country: 'Italien',
-  email: '',
+  email: 'danielnagler1507@gmail.com',
   phone: '',
   sourceUrl: '',
   host: 'Cloudflare, Inc. (Cloudflare Pages)',
