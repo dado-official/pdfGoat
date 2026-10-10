@@ -12,6 +12,7 @@ import GoatMark from './ui/GoatMark';
 import { useFileDrop, useShortcuts } from './ui/useWindowEvents';
 import DropZone from './features/open/DropZone';
 import PasswordDialog from './features/open/PasswordDialog';
+import Reader from './features/read/Reader';
 import PageGrid from './features/organize/PageGrid';
 import Preview from './features/organize/Preview';
 import Toolbar from './features/organize/Toolbar';
@@ -34,6 +35,7 @@ export default function App() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [previewId, setPreviewId] = useState<string | null>(null);
+  const [view, setView] = useState<'pages' | 'read'>('pages');
   const [splitOpen, setSplitOpen] = useState(false);
   const [passwordAsk, setPasswordAsk] = useState<{ name: string; wrong: boolean; answer: (p: string | null) => void } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -102,6 +104,7 @@ export default function App() {
     Object.values(docs).forEach(closePdf);
     setDocs({});
     clearThumbs();
+    setView('pages');
     dispatch({ type: 'reset' });
     setError('');
     setNotice('');
@@ -167,6 +170,8 @@ export default function App() {
     } else if (mod && key === 'z') {
       e.preventDefault();
       dispatch({ type: 'undo' });
+    } else if (view === 'read') {
+      return;
     } else if (mod && key === 'a' && pages.length) {
       e.preventDefault();
       dispatch({ type: 'selectAll' });
@@ -255,11 +260,21 @@ export default function App() {
 
         <div className="work">
           {pages.length > 0 && (
+            <div className="views" role="group" aria-label={t('view.label')}>
+              {(['pages', 'read'] as const).map((v) => (
+                <button key={v} aria-pressed={view === v} onClick={() => setView(v)}>
+                  {t(`view.${v}`)}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {pages.length > 0 && (
             <p className="status" aria-live="polite">
               {tn('status.pages', pages.length)}
               {docCount > 1 && t('status.fromFiles', { count: docCount })}
               {selected.size > 0 && t('status.selected', { count: selected.size })}
-              <span className="tip">{t('status.tip')}</span>
+              {view === 'pages' && <span className="tip">{t('status.tip')}</span>}
             </p>
           )}
 
@@ -277,7 +292,9 @@ export default function App() {
           )}
 
           <main>
-            {pages.length > 0 ? (
+            {pages.length > 0 && view === 'read' ? (
+              <Reader pages={pages} docs={docs} />
+            ) : pages.length > 0 ? (
               <PageGrid
                 state={state}
                 docs={docs}

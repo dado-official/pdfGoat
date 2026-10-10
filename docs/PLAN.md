@@ -179,7 +179,7 @@ Fertig, wenn alle Tests aus M1 mit der neuen Engine grün sind und zusätzlich T
 
 ### M3 – Lesen
 
-Stand: Schritt 1 ist fertig (die Engine rendert, PDF.js ist entfernt, siehe Umsetzungsstand). Reihenfolge der übrigen Schritte: fortlaufende Seitenansicht mit Zoom, Textebene mit Suche und Kopieren, Seitenleiste mit Lesezeichen und Links, Drucken, Arbeitsansicht mit Befehlssuche, mehrere Dokumente als Reiter.
+Stand: Schritt 1 (die Engine rendert, PDF.js ist entfernt) und Schritt 2 (fortlaufende Seitenansicht mit Zoom, siehe Umsetzungsstand) sind fertig. Reihenfolge der übrigen Schritte: Textebene mit Suche und Kopieren, Seitenleiste mit Lesezeichen und Links, Drucken, Arbeitsansicht mit Befehlssuche, mehrere Dokumente als Reiter.
 
 Ab hier fühlt sich PDFgoat wie ein Editor an und nicht wie ein Seitensortierer.
 
@@ -322,6 +322,7 @@ Erledigt aus M2:
 - **Engine läuft im Web Worker** (`src/pdf/engine.ts` auf der Seite, `engine.worker.ts` im Worker, `build.ts` bleibt reine Logik und ist in Node testbar). Fortschritt wird angezeigt, „Abbrechen“ beendet den Worker. Nur Speichern und Aufteilen laufen bisher darüber, Rendern und Lesen folgen mit M3.
 - **Änderungsliste** (`src/core/changes.ts`, `state/editor.ts`): Der Editor hält die Befehle (`add`, `rotate`, `remove`, `move`, `moveTo`, `reverse`), die Seitenliste wird daraus abgeleitet. Rückgängig nimmt den letzten Befehl weg und baut die Seitenliste neu auf, Wiederholen legt ihn zurück. Die Grenze von 50 Schritten entfällt. Neue Befehle für Kommentare, Formularwerte und Schwärzen kommen in M4 bis M7 als weitere Typen dazu. Die Engine bekommt sie noch nicht: Speichern nutzt weiter nur die Seitenliste, das ändert sich mit dem ersten Inhaltsbefehl.
 - **M3, Schritt 1: Die Engine rendert, PDF.js ist entfernt.** Ein zweiter Worker (`view.worker.ts`, Seite: `view.ts`) hält die geöffneten Dateien, fragt Passwörter ab und rendert Seiten als PNG. Speichern läuft weiter im ersten Worker, damit lange Aufträge die Vorschau nicht anhalten. Die Dateien liegen damit zweimal im Speicher (einmal im Renderer, einmal als Rohbytes für das Speichern). Gründe für die Nebenwirkungen: MuPDF lädt per Top-Level-await und wird deshalb erst bei der ersten Anfrage importiert, und seine Hinweise zu reparierten Dateien gehen ins Debug-Log.
+- **M3, Schritt 2: Leseansicht** (`features/read/`, Geometrie in `core/readerLayout.ts`). Umschalter „Seiten / Lesen“ über dem Dokument. Alle Seiten stehen in endgültiger Größe untereinander, gezeichnet wird nur, was nah am Bildschirm ist, entfernte Seiten geben ihr Bild wieder frei. Zoom: Breite anpassen, ganze Seite, Schritte von 25 bis 400 % (100 % ist Druckgröße), Strg+Plus/Minus/0. Blättern mit Bild auf/ab, Pfeil links/rechts, Pos1/Ende und Seitenzahl eintippen. Die Ansicht zeigt die bearbeitete Seitenliste (gelöscht, sortiert, gedreht). Grenze: Bilder sind höchstens 2400 Pixel breit und werden bei stärkerem Zoom gestreckt, Kacheln folgen später.
 - pdf-lib ist aus der App entfernt und dient nur noch in den Tests als zweiter, unabhängiger Leser.
 
 Offen aus M2: nichts mehr. Die Prüfung mit echten großen PDFs (Speicher und Geschwindigkeit im Browser) wurde bewusst nicht gemacht und bleibt als Risiko bestehen.

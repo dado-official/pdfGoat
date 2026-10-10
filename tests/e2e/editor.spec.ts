@@ -239,6 +239,71 @@ test('renders previews only for pages near the visible area', async ({ app: page
   await expect(last.locator('img')).toBeVisible();
 });
 
+test.describe('reading view', () => {
+  const read = (page: Page) => page.getByRole('button', { name: 'Lesen', exact: true }).click();
+  const pageField = (page: Page) => page.getByRole('textbox', { name: /Seite/ });
+  const scroller = (page: Page) => page.locator('.reader-scroll');
+
+  test('shows all pages in a continuous view and draws the ones in sight', async ({ app: page }) => {
+    await openFixtures(page);
+    await read(page);
+    await expect(page.locator('.read-page')).toHaveCount(5);
+    await expect(page.locator('.read-page img').first()).toBeVisible();
+    await expect(pageField(page)).toHaveValue('1');
+    await expect(page.getByText('von 5')).toBeVisible();
+  });
+
+  test('follows edits made in the page view', async ({ app: page }) => {
+    await openFixtures(page);
+    await card(page, 0).hover();
+    await card(page, 0).getByRole('button', { name: /löschen/i }).click();
+    await read(page);
+    await expect(page.locator('.read-page')).toHaveCount(4);
+  });
+
+  test('zooms with the buttons and the list', async ({ app: page }) => {
+    await openFixtures(page);
+    await read(page);
+    const before = await page.locator('.read-page').first().boundingBox();
+    await page.getByRole('button', { name: 'Vergrößern' }).click();
+    await expect(page.locator('.zoom-now')).toHaveText(/^\d+ %$/);
+    const after = await page.locator('.read-page').first().boundingBox();
+    expect(after!.width).toBeGreaterThan(before!.width);
+
+    await page.getByRole('combobox', { name: 'Zoom' }).selectOption('50');
+    await expect(page.locator('.zoom-now')).toHaveText('50 %');
+    const small = await page.locator('.read-page').first().boundingBox();
+    expect(Math.round(small!.width)).toBe(Math.round(501 * (96 / 72) * 0.5));
+  });
+
+  test('pages with the keyboard and jumps to a typed page number', async ({ app: page }) => {
+    await openFixtures(page);
+    await read(page);
+    await scroller(page).focus();
+    await page.keyboard.press('End');
+    await expect(pageField(page)).toHaveValue('5');
+    await page.keyboard.press('Home');
+    await expect(pageField(page)).toHaveValue('1');
+    await page.keyboard.press('PageDown');
+    await expect(pageField(page)).toHaveValue('2');
+
+    await pageField(page).fill('4');
+    await pageField(page).press('Enter');
+    await expect(pageField(page)).toHaveValue('4');
+    await expect(page.locator('.read-page[data-page="4"] img')).toBeVisible();
+  });
+
+  test('shows a rotated page turned', async ({ app: page }) => {
+    await openFixtures(page);
+    await card(page, 0).getByRole('button', { name: /Seite 1 auswählen/ }).click();
+    await page.getByRole('button', { name: /Rechts drehen/ }).click();
+    await read(page);
+    await page.getByRole('combobox', { name: 'Zoom' }).selectOption('100');
+    const box = await page.locator('.read-page').first().boundingBox();
+    expect(box!.width).toBeGreaterThan(box!.height);
+  });
+});
+
 test('shows a PDF with an embedded font and starts the PDF engine only when a file is opened', async ({ app: page }) => {
   const scripts = () => page.evaluate(() => performance.getEntriesByType('resource').map((r) => r.name));
   expect((await scripts()).some((name) => name.includes('view.worker'))).toBe(false);

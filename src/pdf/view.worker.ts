@@ -17,6 +17,8 @@ export interface OpenResult {
   pageCount: number;
   /** True when the file is protected; it was opened with the given password or needs none. */
   encrypted: boolean;
+  /** Width and height of every page in points, as shown (own rotation applied); null for a page that is damaged. */
+  sizes: (readonly [number, number] | null)[];
 }
 
 const docs = new Map<string, PDFDocument>();
@@ -38,21 +40,40 @@ function open(engine: Engine, { docId, name, bytes, password }: Extract<ViewRequ
     throw new AppError(password === undefined ? 'passwordRequired' : 'passwordWrong', { name });
   }
   docs.set(docId, doc);
-  return { pageCount: doc.countPages(), encrypted: !doc.getTrailer().get('Encrypt').isNull() };
+  const pageCount = doc.countPages();
+  const sizes = Array.from({ length: pageCount }, (_, i) => pageSize(doc, i));
+  return { pageCount, encrypted: !doc.getTrailer().get('Encrypt').isNull(), sizes };
+}
+
+/** A damaged file can list pages that do not exist; MuPDF would draw them empty. */
+function hasPage(doc: PDFDocument, index: number): boolean {
+  try {
+    return index < doc.countPages() && doc.findPage(index).isDictionary();
+  } catch {
+    return false;
+  }
+}
+
+function pageSize(doc: PDFDocument, index: number): readonly [number, number] | null {
+  if (!hasPage(doc, index)) return null;
+  try {
+    const page = doc.loadPage(index);
+    try {
+      const [x0, y0, x1, y1] = page.getBounds();
+      return [x1 - x0, y1 - y0];
+    } finally {
+      page.destroy();
+    }
+  } catch {
+    return null;
+  }
 }
 
 /** Renders a page to a PNG that is `width` pixels wide, turned clockwise by `rotation` on top of its own. */
 function render(engine: Engine, { docId, pageIndex, width, rotation }: Extract<ViewRequest, { type: 'render' }>): Uint8Array {
   const doc = docs.get(docId);
   if (!doc) throw new AppError('renderFailed');
-  // A damaged file can list pages that do not exist; MuPDF would draw them empty.
-  let exists = false;
-  try {
-    exists = pageIndex < doc.countPages() && doc.findPage(pageIndex).isDictionary();
-  } catch {
-    // treated as missing
-  }
-  if (!exists) throw new AppError('renderFailed');
+  if (!hasPage(doc, pageIndex)) throw new AppError('renderFailed');
   const page = doc.loadPage(pageIndex);
   try {
     const [x0, y0, x1, y1] = page.getBounds();

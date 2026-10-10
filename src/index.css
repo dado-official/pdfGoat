@@ -500,3 +500,74 @@ dialog::backdrop { background: rgb(28 33 38 / 0.55); }
   * { transition: none !important; }
   .spinner { animation-duration: 2.4s; }
 }
+
+/* View switch */
+.views { display: flex; gap: 0; margin: 0 0 14px; }
+.views button {
+  padding: 7px 16px;
+  border: 1px solid var(--edge);
+  background: var(--rail);
+  font-family: var(--narrow);
+  font-stretch: 80%;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+}
+.views button + button { border-left: 0; }
+.views button[aria-pressed='true'] { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+
+/* Reading view */
+.reader { display: flex; flex-direction: column; height: calc(100dvh - 150px); min-height: 360px; border: 1px solid var(--edge); }
+.reader-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 20px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--edge);
+  background: var(--rail);
+}
+.reader-bar input, .reader-bar select {
+  padding: 4px 8px;
+  border: 1px solid var(--edge);
+  border-radius: 2px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+}
+.reader-bar .page-field input { width: 3.4em; text-align: center; margin-right: 4px; }
+.reader-bar .zoom { display: flex; align-items: center; gap: 6px; }
+.reader-bar .zoom button {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--edge);
+  border-radius: 2px;
+  background: var(--paper);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.reader-bar .zoom button:hover:not(:disabled) { border-color: var(--ink); }
+.reader-bar .zoom button:disabled { opacity: 0.4; cursor: default; }
+.reader-bar .zoom-now { min-width: 3.5em; color: var(--dust); font-variant-numeric: tabular-nums; }
+.reader-scroll { flex: 1; overflow: auto; background: var(--bench); }
+.reader-scroll:focus-visible { outline-offset: -3px; }
+.reader-pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  min-width: 100%;
+  width: max-content;
+  padding: 24px;
+}
+.read-page {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  background: white;
+  box-shadow: var(--paper-shadow);
+}
+.read-page img { width: 100%; height: 100%; display: block; user-select: none; }

@@ -9,6 +9,8 @@ import type { OpenResult, ViewRequest, ViewResponse } from './view.worker';
 export interface SourceDoc extends BuildSource {
   id: string;
   name: string;
+  /** Page sizes in points as shown, by page index; null for a damaged page. */
+  sizes: OpenResult['sizes'];
 }
 
 export interface OpenedPdf {
@@ -83,7 +85,7 @@ export async function openPdf(file: File, password?: string): Promise<OpenedPdf>
   const id = uid('d');
   // The worker takes over the buffer it is given, so it gets a copy when we keep the bytes.
   const bytes = keepBytes ? data.slice() : data;
-  const { pageCount, encrypted } = await call<OpenResult>(
+  const { pageCount, encrypted, sizes } = await call<OpenResult>(
     { type: 'open', docId: id, name, bytes, password },
     [bytes.buffer],
   );
@@ -91,6 +93,7 @@ export async function openPdf(file: File, password?: string): Promise<OpenedPdf>
   const doc: SourceDoc = {
     id,
     name,
+    sizes,
     byteLength: file.size,
     password,
     read: keepBytes ? async () => data : () => readFile(file),
