@@ -23,7 +23,7 @@ export interface Operator {
 export const OPERATOR: Operator = {
   name: 'Daniel Nagler',
   street: 'Freines 2',
-  city: 'La Valle',
+  city: '39030 La Valle (BZ)',
   country: 'Italien',
   email: 'danielnagler1507@gmail.com',
   phone: '',
