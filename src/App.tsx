@@ -21,6 +21,9 @@ import { useFileDrop, useShortcuts } from './ui/useWindowEvents';
 import DropZone from './features/open/DropZone';
 import PasswordDialog from './features/open/PasswordDialog';
 import Reader from './features/read/Reader';
+import { registerOffline } from './pwa';
+import { allowWriting, canPickWithHandles, pickPdfs, receiveLaunchedFiles, writeInto, type OpenedFile } from './features/open/fileAccess';
+import PageDialog from './features/edit/PageDialog';
 import BookmarksDialog from './features/bookmarks/BookmarksDialog';
 import { resolveBookmarks } from './core/bookmarks';
 import BatchDialog from './features/batch/BatchDialog';
@@ -82,6 +85,8 @@ export default function App() {
   const job = useRef<AbortController | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  // Set when a new version of the app is ready to be loaded.
+  const [updateApply, setUpdateApply] = useState<(() => Promise<void>) | null>(null);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [splitOpen, setSplitOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
@@ -135,7 +140,15 @@ export default function App() {
   }
 
   const previewIndex = pages.findIndex((p) => p.id === previewId);
-  const openFilePicker = () => fileInput.current?.click();
+  const openFilePicker = async () => {
+    // Where the browser allows it, files are picked with handles, so they can be saved in place.
+    if (canPickWithHandles()) {
+      const picked = await pickPdfs(t('open.pdfFiles'), t('open.pictures')).catch(() => null);
+      if (picked) void addFiles(picked.map((p) => p.file), new Map(picked.map((p) => [p.file, p.handle])));
+      return;
+    }
+    fileInput.current?.click();
+  };
 
   /** Opens a file; protected files ask for their password until it fits or the user skips them. */
   const openWithPassword = useCallback(async (file: File): Promise<OpenedPdf | null> => {
@@ -157,7 +170,7 @@ export default function App() {
   }, []);
 
   const addFiles = useCallback(
-    async (list: FileList | File[]) => {
+    async (list: FileList | File[], handles?: Map<File, OpenedFile['handle']>) => {
       setError('');
       setNotice('');
       const files = [...list].filter(isOpenable);
@@ -174,6 +187,8 @@ export default function App() {
           // A picture becomes a PDF of one page first.
           const result = await openWithPassword(isImage(file) ? await imageToPdfFile(file) : file);
           if (!result) continue;
+          // Only a PDF can be written back; a picture that was made into a PDF must never be overwritten by it.
+          if (isPdf(file)) result.doc.handle = handles?.get(file);
           opened.push(result);
           if (result.encrypted) notices.push(t('warning.encrypted', { name: file.name }));
           if (result.large) notices.push(t('warning.large', { name: file.name, size: toMegabytes(file.size) }));
@@ -193,6 +208,10 @@ export default function App() {
     },
     [t, errorText, openWithPassword, setError, setNotice],
   );
+
+  useEffect(() => {
+    const apply = registerOffline(() => setUpdateApply(() => apply));
+  }, []);
 
   const hasEdits = (t: NonNullable<typeof tab>) => t.editor.changes.length > t.editor.locked;
 
@@ -390,6 +409,32 @@ export default function App() {
 
   const fileDragging = useFileDrop(addFiles);
 
+  // Files that the system opens with the installed app ("Open with PDFgoat").
+  useEffect(() => {
+    receiveLaunchedFiles((files) => void addFiles(files.map((f) => f.file), new Map(files.map((f) => [f.file, f.handle]))));
+  }, [addFiles]);
+
+  // The file on disk that the document of this tab came from, when it can be written back.
+  const sourceDoc = new Set(ownPages.map((p) => p.docId)).size === 1 ? docs[ownPages[0].docId] : undefined;
+  const overwriteTarget = sourceDoc?.handle ? sourceDoc : undefined;
+  const [overwriteOpen, setOverwriteOpen] = useState(false);
+
+  /** Writes the document into the file it was opened from. */
+  async function overwrite() {
+    const doc = overwriteTarget;
+    if (!doc?.handle) return;
+    // Permission needs a click that is still fresh, so it is asked for before the work starts.
+    if (!(await allowWriting(doc.handle).catch(() => false))) {
+      setError(t('overwrite.denied'));
+      return;
+    }
+    await run(t('busy.saving'), async (job) => {
+      const bytes = await buildPdf(pages, docs, { ...job, flatten, date, protect, clean, outline: outlineFor(pages) });
+      await writeInto(doc.handle!, bytes);
+      setNotice(t('overwrite.done', { name: doc.name }));
+    });
+  }
+
   useShortcuts((e) => {
     const mod = e.ctrlKey || e.metaKey;
     const key = e.key.toLowerCase();
@@ -533,6 +578,8 @@ export default function App() {
               onDelete={() => dispatch({ type: 'remove', ids: [...selected] })}
               onReverse={() => dispatch({ type: 'reverse' })}
               onSplit={() => setSplitOpen(true)}
+              overwriteName={overwriteTarget?.name}
+              onOverwrite={() => setOverwriteOpen(true)}
               flatten={flatten}
               onFlatten={setFlatten}
               onSave={save}
@@ -572,6 +619,18 @@ export default function App() {
             <div className="error" role="alert">
               {error}
               <button onClick={() => setError('')} aria-label={t('alert.close')}>✕</button>
+            </div>
+          )}
+          {updateApply && (
+            <div className="notice" role="status">
+              <span>
+                {t('update.ready')}
+                {ws.tabs.some((x) => x.editor.changes.length > x.editor.locked) && ` ${t('update.unsaved')}`}
+              </span>
+              <span className="notice-actions">
+                <button onClick={() => void updateApply()}>{t('update.now')}</button>
+                <button onClick={() => setUpdateApply(null)} aria-label={t('alert.close')}>✕</button>
+              </span>
             </div>
           )}
           {notice && (
@@ -681,6 +740,20 @@ export default function App() {
         <MergeDialog tabs={ws.tabs} onMerge={mergeTabs} onClose={() => setMergeOpen(false)} />
       )}
 
+      {overwriteOpen && overwriteTarget && (
+        <PageDialog
+          title={t('overwrite.title')}
+          scope={t('overwrite.text', { name: overwriteTarget.name })}
+          submitLabel={t('overwrite.apply')}
+          onSubmit={() => {
+            setOverwriteOpen(false);
+            void overwrite();
+          }}
+          onClose={() => setOverwriteOpen(false)}
+        >
+          <p className="dialog-hint">{t('overwrite.hint')}</p>
+        </PageDialog>
+      )}
       {bookmarksOpen && (
         <BookmarksDialog pages={pages} docs={docs} current={bookmarks} onApply={(items) => dispatch({ type: 'outline', items })} onClose={() => setBookmarksOpen(false)} />
       )}

@@ -954,3 +954,6 @@ textarea.form-field { padding-top: 2px; resize: none; line-height: 1.2; }
 .field-editor label { display: flex; flex-direction: column; gap: 3px; }
 .field-editor label.check { flex-direction: row; align-items: center; gap: 6px; }
 .field-editor input:not([type='checkbox']), .field-editor textarea { padding: 5px 7px; border: 1px solid var(--edge); border-radius: var(--radius); font: inherit; }
+.notice-actions { display: flex; gap: 8px; flex: none; }
+.notice-actions button { padding: 3px 10px; border: 1px solid var(--edge); border-radius: var(--radius); background: var(--paper); cursor: pointer; }
+.toolbar .overwrite { margin-top: 6px; color: var(--signal-deep); }

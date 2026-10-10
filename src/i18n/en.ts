@@ -593,4 +593,20 @@ export const en: Record<MessageKey, string> = {
   'field.multiline': 'Several lines',
   'field.required': 'Required',
   'field.readOnly': 'Read only',
+
+  // Updates
+  'update.ready': 'A new version of PDFgoat is ready.',
+  'update.unsaved': 'Reloading loses changes that are not saved.',
+  'update.now': 'Reload now',
+
+  // Writing back
+  'open.pdfFiles': 'PDF files',
+  'toolbar.overwrite': 'Save into the file',
+  'overwrite.title': 'Overwrite the file',
+  'overwrite.text': 'The file {name} will be overwritten with the edited document.',
+  'overwrite.apply': 'Overwrite',
+  'overwrite.hint': 'This cannot be undone. To keep a copy, use “Save PDF” instead.',
+  'overwrite.denied': 'The browser did not allow writing into the file.',
+  'overwrite.done': 'Saved in {name}.',
+  'open.pictures': 'Pictures',
 };

@@ -22,6 +22,8 @@ export type { Inspection };
 export type { Box, FileComment, FormField, OutlineNode, PageLink, TextLine };
 
 export interface SourceDoc extends BuildSource {
+  /** The file on disk, when it was opened in a way that allows writing it back. */
+  handle?: import('../features/open/fileAccess').FileHandle;
   id: string;
   name: string;
   /** Page sizes in points as shown, by page index; null for a damaged page. */

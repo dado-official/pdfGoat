@@ -24,6 +24,9 @@ interface Props {
   onReverse: () => void;
   onSplit: () => void;
   onPrint: () => void;
+  /** Name of the file on disk when the document can be written back into it. */
+  overwriteName?: string;
+  onOverwrite: () => void;
   flatten: boolean;
   onFlatten: (on: boolean) => void;
   onSave: () => void;
@@ -64,6 +67,12 @@ export default function Toolbar(p: Props) {
           <input type="checkbox" checked={p.flatten} onChange={(e) => p.onFlatten(e.target.checked)} />
           {t('toolbar.flatten')}
         </label>
+        {p.overwriteName && (
+          <button className="overwrite" onClick={p.onOverwrite} disabled={!p.pageCount || p.busy} title={p.overwriteName}>
+            <Icon name="open" size={18} />
+            {t('toolbar.overwrite')}
+          </button>
+        )}
         <button className="primary" onClick={p.onSave} disabled={!p.pageCount || p.busy}>
           <Icon name="save" size={18} />
           {t(p.docCount > 1 ? 'toolbar.saveMerged' : 'toolbar.save')}

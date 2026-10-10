@@ -1450,6 +1450,55 @@ test.describe('creating form fields', () => {
   });
 });
 
+test.describe('files handed over by the system', () => {
+  // A stand-in for the File System Access API: handles that keep what is written into them.
+  const fakeSystem = () => {
+    const w = window as unknown as Record<string, unknown>;
+    w.__written = null;
+    // The browser has a launch queue of its own; this one replaces it.
+    Object.defineProperty(window, 'launchQueue', { configurable: true, value: { setConsumer: (cb: unknown) => (w.__launch = cb) } });
+    w.__handle = (name: string, bytes: number[]) => ({
+      kind: 'file',
+      name,
+      getFile: async () => new File([new Uint8Array(bytes)], name, { type: 'application/pdf' }),
+      createWritable: async () => ({
+        write: async (data: Uint8Array) => {
+          w.__written = Array.from(data);
+        },
+        close: async () => undefined,
+      }),
+      requestPermission: async () => 'granted',
+    });
+  };
+
+  test('opens a PDF that the system hands over and writes the changed document back into the same file', async ({ app: page }) => {
+    await page.addInitScript(fakeSystem);
+    await page.reload();
+    await page.waitForFunction(() => typeof (window as unknown as { __launch?: unknown }).__launch === 'function');
+    const original = Array.from(await makePdf([{ width: 501 }, { width: 502 }]));
+    await page.evaluate((bytes) => {
+      const w = window as unknown as { __launch: (p: { files: unknown[] }) => void; __handle: (n: string, b: number[]) => unknown };
+      w.__launch({ files: [w.__handle('echt.pdf', bytes)] });
+    }, original);
+    await expect(page.locator('.card')).toHaveCount(2);
+    await expect(page.getByRole('button', { name: 'In der Datei speichern' })).toBeVisible();
+    await card(page, 0).locator('.card-thumb').click();
+    await page.getByRole('button', { name: 'Rechts drehen' }).click();
+    await page.getByRole('button', { name: 'In der Datei speichern' }).click();
+    await expect(page.getByText('Die Datei echt.pdf wird mit dem bearbeiteten Dokument überschrieben.')).toBeVisible();
+    await page.getByRole('dialog').getByRole('button', { name: 'Überschreiben' }).click();
+    await expect(page.getByText('Gespeichert in echt.pdf.')).toBeVisible();
+    const written = await page.evaluate(() => (window as unknown as { __written: number[] }).__written);
+    expect(await widthsAndRotations(new Uint8Array(written))).toEqual(['501@90', '502@0']);
+  });
+
+  test('offers no overwriting for a file that was opened without a handle', async ({ app: page }) => {
+    await page.getByTestId('file-input').setInputFiles(pdfFile('a.pdf', await makePdf([{ width: 300 }])));
+    await expect(page.locator('.card img')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'In der Datei speichern' })).toHaveCount(0);
+  });
+});
+
 test.describe('files that cannot be opened', () => {
   test('rejects files that are not PDFs', async ({ app: page }) => {
     await page.getByTestId('file-input').setInputFiles(pdfFile('kaputt.pdf', Buffer.from('das ist kein pdf')));

@@ -596,6 +596,22 @@ export const de = {
   'field.multiline': 'Mehrere Zeilen',
   'field.required': 'Pflichtfeld',
   'field.readOnly': 'Nur lesen',
+
+  // Updates
+  'update.ready': 'Eine neue Version von PDFgoat ist bereit.',
+  'update.unsaved': 'Beim Neuladen gehen nicht gespeicherte Änderungen verloren.',
+  'update.now': 'Jetzt neu laden',
+
+  // Writing back
+  'open.pdfFiles': 'PDF-Dateien',
+  'toolbar.overwrite': 'In der Datei speichern',
+  'overwrite.title': 'Datei überschreiben',
+  'overwrite.text': 'Die Datei {name} wird mit dem bearbeiteten Dokument überschrieben.',
+  'overwrite.apply': 'Überschreiben',
+  'overwrite.hint': 'Das lässt sich nicht rückgängig machen. Wenn du eine Kopie behalten willst, speichere stattdessen mit „PDF speichern“.',
+  'overwrite.denied': 'Der Browser hat das Schreiben in die Datei nicht erlaubt.',
+  'overwrite.done': 'Gespeichert in {name}.',
+  'open.pictures': 'Bilder',
 } as const;
 
 export type MessageKey = keyof typeof de;

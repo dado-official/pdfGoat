@@ -11,6 +11,9 @@ export default defineConfig({
     baseURL: 'http://localhost:4173',
     // The app follows the browser language; the tests are written against the German texts.
     locale: 'de-AT',
+    // The service worker is switched off, so the tests always get fresh files and stay fast. The
+    // offline test turns it back on.
+    serviceWorkers: 'block',
     trace: 'retain-on-failure',
   },
   // Locally the installed Google Chrome is used. CI uses Playwright's own browsers and also
