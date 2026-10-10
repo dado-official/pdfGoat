@@ -37,7 +37,7 @@ import CompareDialog from './features/compare/CompareDialog';
 import CompressDialog from './features/export/CompressDialog';
 import { LEVELS, type CompressLevel } from './core/compress';
 import ExportDialog, { type ExportFormat } from './features/export/ExportDialog';
-import { toMarkdown, toParagraphs, toText } from './core/textExport';
+import { toMarkdown, toParagraphs, toText, withoutCovered } from './core/textExport';
 import { buildDocx } from './core/docx';
 import { renderFinalPng } from './pdf/render';
 import { getText } from './pdf/view';
@@ -322,7 +322,9 @@ export default function App() {
         if (job.signal?.aborted) throw new CancelledError();
         const doc = docs[p.docId];
         const lines = [...(doc?.sizes[p.srcIndex] ? await getText(doc, p.srcIndex) : []), ...ocrLines(p.ocr ?? [])];
-        texts.push(toParagraphs(lines.map((l) => ({ text: l.text, x: l.x, y: l.y, size: l.size }))));
+        // Text under a redaction must not come back through an export.
+        const kept = withoutCovered(lines, (p.annots ?? []).filter((a) => a.kind === 'redact').map((a) => a.box));
+        texts.push(toParagraphs(kept.map((l) => ({ text: l.text, x: l.x, y: l.y, size: l.size }))));
         job.onProgress?.((i + 1) / target.length);
       }
       const text = format === 'md' ? toMarkdown(texts) : toText(texts);

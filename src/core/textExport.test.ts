@@ -37,3 +37,13 @@ describe('export formats', () => {
     expect(toMarkdown(pages)).toBe('# Titel\n\nEin \\*Satz\\* mit\\_Zeichen.\n\n---\n\nSeite zwei');
   });
 });
+
+describe('withoutCovered', () => {
+  const l = (text: string, y: number, x = 72): Line & { length: number } => ({ text, x, y, size: 12, length: 80 });
+  it('drops the lines that meet a box and keeps the others', async () => {
+    const { withoutCovered } = await import('./textExport');
+    const lines = [l('geheim', 100), l('offen', 130), l('daneben', 100, 400)];
+    expect(withoutCovered(lines, [[60, 85, 200, 105]]).map((x) => x.text)).toEqual(['offen', 'daneben']);
+    expect(withoutCovered(lines, [])).toHaveLength(3);
+  });
+});

@@ -3,7 +3,8 @@
 import { applyChange, type Change } from './changes';
 import type { CompressLevel } from './compress';
 import type { MarkPlace } from './marks';
-import { cropFromMargins, MM, paperSize, type Margins, type Orientation, type PaperName } from './paper';
+import { MARK_PLACES } from './marks';
+import { cropFromMargins, MM, PAPER_NAMES, paperSize, type Margins, type Orientation, type PaperName } from './paper';
 import type { Cleaning, Permissions } from './protect';
 import type { Size } from './readerLayout';
 import type { PageRef } from './types';
@@ -108,13 +109,65 @@ export function planWorkflow(steps: readonly Step[], start: PageRef[], own: (p: 
 /** A short description of a step for lists. */
 export const stepKey = (s: Step): StepType => s.type;
 
-/** Reads a workflow from text (a saved file); null when it is not one. Unknown steps are dropped. */
-export function parseWorkflow(text: string): Workflow | null {
+const num = (v: unknown, min: number, max: number, fallback: number) => {
+  const n = typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+  return Math.max(min, Math.min(max, n));
+};
+const bool = (v: unknown) => v === true;
+const text = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : '');
+const oneOf = <T extends string | number>(v: unknown, allowed: readonly T[], fallback: T): T => (allowed.includes(v as T) ? (v as T) : fallback);
+
+/**
+ * A step from outside (a saved file, the browser's storage) made safe: every field has the right
+ * kind and a sensible range, missing fields get their usual value. Null for something that is not a step.
+ */
+export function normalizeStep(raw: unknown): Step | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const s = raw as Record<string, unknown>;
+  const obj = (v: unknown) => (v && typeof v === 'object' ? (v as Record<string, unknown>) : {});
+  switch (s.type) {
+    case 'mark':
+      return {
+        type: 'mark',
+        text: text(s.text, 300),
+        place: oneOf(s.place, MARK_PLACES, 'bottomCenter'),
+        size: num(s.size, 6, 200, 10),
+        color: /^#[0-9a-f]{6}$/i.test(String(s.color)) ? String(s.color) : '#14161a',
+        opacity: num(s.opacity, 0.05, 1, 1),
+        diagonal: bool(s.diagonal),
+      };
+    case 'rotate':
+      return { type: 'rotate', degrees: oneOf(s.degrees, [90, 180, 270] as const, 90) };
+    case 'crop': {
+      const m = obj(s.margins);
+      return { type: 'crop', margins: { top: num(m.top, 0, 500, 10), right: num(m.right, 0, 500, 10), bottom: num(m.bottom, 0, 500, 10), left: num(m.left, 0, 500, 10) } };
+    }
+    case 'resize':
+      return { type: 'resize', paper: oneOf(s.paper, PAPER_NAMES, 'a4'), orientation: oneOf(s.orientation, ['keep', 'portrait', 'landscape'] as const, 'keep') };
+    case 'compress':
+      return { type: 'compress', level: oneOf(s.level, ['light', 'medium', 'strong'] as const, 'medium') };
+    case 'protect': {
+      const a = obj(s.allow);
+      // Passwords are never taken from a file.
+      return { type: 'protect', userPassword: '', ownerPassword: '', allow: { print: a.print !== false, copy: a.copy !== false, edit: a.edit !== false, annotate: a.annotate !== false } };
+    }
+    case 'clean': {
+      const w = obj(s.what);
+      return { type: 'clean', what: { metadata: bool(w.metadata), attachments: bool(w.attachments), comments: bool(w.comments), thumbnails: bool(w.thumbnails), scripts: bool(w.scripts) } };
+    }
+    case 'flatten':
+      return { type: 'flatten' };
+    default:
+      return null;
+  }
+}
+
+/** Reads a workflow from text (a saved file); null when it is not one. Steps that are not understood are dropped. */
+export function parseWorkflow(text_: string): Workflow | null {
   try {
-    const raw = JSON.parse(text) as { name?: unknown; steps?: unknown };
-    if (typeof raw.name !== 'string' || !Array.isArray(raw.steps)) return null;
-    const steps = raw.steps.filter((s): s is Step => !!s && typeof s === 'object' && STEP_TYPES.includes((s as { type: StepType }).type));
-    return { name: raw.name.slice(0, 80), steps };
+    const raw = JSON.parse(text_) as { name?: unknown; steps?: unknown };
+    if (!raw || typeof raw.name !== 'string' || !Array.isArray(raw.steps)) return null;
+    return { name: raw.name.slice(0, 80), steps: raw.steps.map(normalizeStep).filter((st): st is Step => st !== null).slice(0, 50) };
   } catch {
     return null;
   }

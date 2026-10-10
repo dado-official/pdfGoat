@@ -1107,6 +1107,20 @@ test.describe('protecting', () => {
     expect(new TextDecoder('latin1').decode(bytes)).not.toContain('Erste');
   });
 
+  test('keeps redacted text out of an export as text', async ({ app: page }) => {
+    await openContent(page);
+    await page.getByRole('searchbox', { name: 'Im Dokument suchen' }).fill('Erste');
+    await tool(page, 'Treffer schwärzen').click();
+    await page.getByRole('button', { name: 'Seiten', exact: true }).click();
+    await page.getByRole('button', { name: 'Exportieren' }).first().click();
+    await page.getByLabel('Reiner Text').check();
+    const file = page.waitForEvent('download');
+    await page.getByRole('dialog').getByRole('button', { name: 'Exportieren' }).click();
+    const text = new TextDecoder().decode(await downloadBytes(await file));
+    expect(text).not.toContain('Erste');
+    expect(text).toContain('Zweite Zeile');
+  });
+
   test('draws a redaction area and takes it back', async ({ app: page }) => {
     await openContent(page);
     await tool(page, 'Schwärzen').click();

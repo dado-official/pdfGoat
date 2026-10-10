@@ -74,3 +74,22 @@ describe('parseWorkflow', () => {
     expect(parseWorkflow('[]')).toBeNull();
   });
 });
+
+describe('normalizeStep', () => {
+  it('fills in what is missing and keeps values in range, so that a damaged file cannot break the screen', async () => {
+    const { normalizeStep } = await import('./workflow');
+    expect(normalizeStep({ type: 'crop' })).toEqual({ type: 'crop', margins: { top: 10, right: 10, bottom: 10, left: 10 } });
+    expect(normalizeStep({ type: 'crop', margins: { top: -5, right: 'x', bottom: 9999, left: 3 } })).toEqual({ type: 'crop', margins: { top: 0, right: 10, bottom: 500, left: 3 } });
+    expect(normalizeStep({ type: 'mark', size: 'groß', place: 'nirgends', color: 'rot' })).toMatchObject({ size: 10, place: 'bottomCenter', color: '#14161a', text: '' });
+    expect(normalizeStep({ type: 'rotate', degrees: 45 })).toEqual({ type: 'rotate', degrees: 90 });
+    expect(normalizeStep({ type: 'protect' })).toMatchObject({ allow: { print: true, copy: true, edit: true, annotate: true } });
+    expect(normalizeStep({ type: 'clean' })).toEqual({ type: 'clean', what: { metadata: false, attachments: false, comments: false, thumbnails: false, scripts: false } });
+    expect(normalizeStep(null)).toBeNull();
+    expect(normalizeStep({ type: 'x' })).toBeNull();
+  });
+
+  it('never takes passwords from a file', async () => {
+    const { normalizeStep } = await import('./workflow');
+    expect(normalizeStep({ type: 'protect', userPassword: 'geheim', ownerPassword: 'auch' })).toMatchObject({ userPassword: '', ownerPassword: '' });
+  });
+});

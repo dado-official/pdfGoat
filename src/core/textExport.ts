@@ -83,3 +83,21 @@ export function toMarkdown(pages: Paragraph[][]): string {
     .filter(Boolean)
     .join('\n\n---\n\n');
 }
+
+/** A line of text that knows how long it is, so that its box can be worked out. */
+export interface BoxedLine extends Line {
+  length: number;
+}
+
+/**
+ * The lines that do not touch any of the given boxes. Used so that redacted text does not come
+ * back in a text export. A line counts as touching when its box (from just above the capitals to
+ * just below the baseline) meets one of the boxes.
+ */
+export function withoutCovered<T extends BoxedLine>(lines: readonly T[], boxes: readonly (readonly [number, number, number, number])[]): T[] {
+  if (!boxes.length) return [...lines];
+  return lines.filter((l) => {
+    const box = [l.x, l.y - l.size * 0.78, l.x + l.length, l.y + l.size * 0.22];
+    return !boxes.some((b) => box[0] < b[2] && b[0] < box[2] && box[1] < b[3] && b[1] < box[3]);
+  });
+}

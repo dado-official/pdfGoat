@@ -7,7 +7,7 @@ export interface FileHandle {
   kind: 'file';
   name: string;
   getFile(): Promise<File>;
-  createWritable(): Promise<{ write(data: Uint8Array | Blob): Promise<void>; close(): Promise<void> }>;
+  createWritable(): Promise<{ write(data: Uint8Array | Blob): Promise<void>; close(): Promise<void>; abort?(): Promise<void> }>;
   requestPermission?(options: { mode: 'readwrite' }): Promise<'granted' | 'denied' | 'prompt'>;
 }
 
@@ -59,7 +59,10 @@ export async function writeInto(handle: FileHandle, bytes: Uint8Array): Promise<
   const writable = await handle.createWritable();
   try {
     await writable.write(bytes);
-  } finally {
-    await writable.close();
+  } catch (err) {
+    // A write that failed halfway must not replace the file: closing would keep the broken part.
+    await writable.abort?.().catch(() => undefined);
+    throw err;
   }
+  await writable.close();
 }

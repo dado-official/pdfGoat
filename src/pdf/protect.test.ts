@@ -15,6 +15,31 @@ const open = async (bytes: Uint8Array, password?: string) => {
   return doc;
 };
 
+/** Numbers of the objects of a PDF (their text or their decoded stream) that contain a word. */
+async function objectsContaining(bytes: Uint8Array, word: string): Promise<number[]> {
+  const { PDFDocument } = await import('mupdf');
+  const hex = [...word].map((c) => c.charCodeAt(0).toString(16).padStart(2, '0')).join('');
+  const doc = new PDFDocument(bytes);
+  try {
+    const found: number[] = [];
+    for (let n = 1; n < doc.countObjects(); n++) {
+      const obj = doc.newIndirect(n);
+      let text = '';
+      try {
+        text += obj.toString();
+        if (obj.isStream()) text += new TextDecoder('latin1').decode(obj.readStream().asUint8Array());
+      } catch {
+        // An object that cannot be read holds nothing readable.
+      }
+      // Text in a page can be written as characters or as a hexadecimal string.
+      if (text.includes(word) || text.toLowerCase().includes(hex)) found.push(n);
+    }
+    return found;
+  } finally {
+    doc.destroy();
+  }
+}
+
 describe('redaction', () => {
   it('removes the text under the area and keeps the rest', async () => {
     const bytes = await makeContentPdf();
@@ -28,9 +53,11 @@ describe('redaction', () => {
     } finally {
       doc.destroy();
     }
-    // The words are not in the file in any form: not in the page content either.
-    const raw = new TextDecoder('latin1').decode(out);
-    expect(raw).not.toContain('Erste');
+    // The words are not in the file in any form: not in a single object of it, however it is packed.
+    expect(await objectsContaining(out, 'Erste')).toEqual([]);
+    // The check itself works: without the redaction the word is found.
+    const plain = await buildPdf([page()], { a: { read: async () => bytes } });
+    expect((await objectsContaining(plain, 'Erste')).length).toBeGreaterThan(0);
   });
 
   it('does not touch the next line when the area comes from a search match', async () => {
@@ -174,5 +201,14 @@ describe('check before giving away', () => {
     } finally {
       doc.destroy();
     }
+  });
+});
+
+describe('what is shown as the saved page', () => {
+  it('goes through the finished page whenever there is a redaction, so that print and export cannot leak', async () => {
+    const { changesContent } = await import('../core/pages');
+    expect(changesContent(page({ annots: [redact([0, 0, 10, 10])] }))).toBe(true);
+    expect(changesContent(page({ annots: [{ ...redact([0, 0, 10, 10]), kind: 'note' }] }))).toBe(false);
+    expect(changesContent(page({ removedFields: [0] }))).toBe(true);
   });
 });

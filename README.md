@@ -7,14 +7,18 @@ MuPDF zeigt die Seiten an und schreibt die neue PDF, alles lokal auf deinem Ger�
 
 ## Was PDFgoat kann
 
-- PDFs öffnen (Dateiauswahl oder Drag & Drop, mehrere auf einmal) mit Seitenvorschau
-- Große Vorschau per Doppelklick, mit ← → blättern
-- Seiten sortieren (Drag & Drop oder Pfeiltasten auf der Karte), drehen, löschen
-- Mehrfachauswahl (Klick, Shift+Klick, Strg+A), Entf löscht, Strg+Z macht rückgängig, Strg+Y wiederholt
-- Zusammenfügen: mehrere PDFs öffnen, ordnen, als eine PDF speichern
-- Aufteilen: Auswahl als PDF, nach Bereichen (`1-3, 4, 5-`) oder alle N Seiten (mehrere Dateien als ZIP)
+- **Lesen:** fortlaufende Ansicht mit Zoom, Suche, Text markieren und kopieren, Seitenleiste mit Miniaturen und Lesezeichen, Links, Drucken; mehrere Dokumente als Reiter, Befehlssuche (Strg+K)
+- **Seiten:** sortieren, drehen, löschen, zusammenfügen, aufteilen, leere Seite einfügen, zuschneiden, auf ein Papierformat bringen, Kopf- und Fußzeile, Seitenzahlen, Wasserzeichen
+- **Kommentieren:** markieren, unterstreichen, durchstreichen, Notiz, Textfeld, Zeichnen, Formen, Pfeile, Stempel, Kommentarliste; als echte PDF-Kommentare gespeichert
+- **Ausfüllen und unterschreiben:** Formularfelder ausfüllen, Formular glätten, Unterschrift zeichnen, tippen oder als Bild, Datum, Häkchen, Kürzel; Formularfelder anlegen
+- **Inhalt bearbeiten:** Text und Bilder einfügen, Links, bestehenden Text zeilenweise ändern, Bilder verschieben, ersetzen und löschen, Lesezeichen bearbeiten
+- **Schützen:** echtes Schwärzen, Passwort und Berechtigungen, Prüfen und Bereinigen vor dem Weitergeben
+- **Umwandeln:** Bilder als Seiten öffnen, Seiten als PNG, Text, Markdown oder einfaches Word exportieren, Texterkennung (Deutsch und Englisch), Komprimieren, zwei Dokumente vergleichen
+- **Abläufe:** eine Folge von Schritten speichern und auf viele Dateien anwenden
+- **Offline:** installierbar, läuft ohne Netz; wo der Browser es erlaubt, wird die Datei direkt überschrieben
 - Oberfläche auf Deutsch und Englisch (folgt der Browsersprache, umschaltbar)
-- Klare Meldungen bei defekten, verschlüsselten und zu großen Dateien (Warnung ab 100 MB, Grenze 500 MB)
+
+Alles läuft im Browser, nichts wird hochgeladen. Grenzen und Entscheidungen stehen in [docs/PLAN.md](docs/PLAN.md).
 
 ## Entwickeln
 
@@ -52,8 +56,8 @@ Die Seite ist rein statisch (`dist/`) und wird über **Cloudflare Pages** veröf
 
 ## Technik
 
-React 19 + TypeScript + Vite, [MuPDF.js](https://mupdf.com/) (AGPL, als WebAssembly), [fflate](https://github.com/101arrowz/fflate) (MIT) für ZIP.
-MuPDF wird erst beim Öffnen einer Datei, fflate erst beim Aufteilen nachgeladen. pdf-lib (MIT) dient nur noch in den Tests als zweiter,
+React 19 + TypeScript + Vite, [MuPDF.js](https://mupdf.com/) (AGPL, als WebAssembly) für alles an der PDF-Datei, [Tesseract.js](https://github.com/naptha/tesseract.js) (Apache-2.0) für die Texterkennung, [fflate](https://github.com/101arrowz/fflate) (MIT) für ZIP.
+MuPDF läuft in zwei Workern (Anzeigen, Speichern). Die Dateien der Texterkennung werden erst bei Gebrauch geladen. pdf-lib (MIT) dient nur in den Tests als zweiter,
 unabhängiger Leser, der die gespeicherten Dateien prüft.
 
 - `src/core/`: reine Logik ohne React und DOM (Seitenbereiche, Größenlimits, Fehlercodes, Typen)
