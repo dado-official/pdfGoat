@@ -12,11 +12,13 @@ import {
   type Size,
   type Zoom,
 } from '../../core/readerLayout';
+import { placeOutline, type FileOutline } from '../../core/outline';
 import { boxOnScreen, type Box } from '../../core/textLayer';
 import type { PageRef } from '../../core/types';
 import { useI18n } from '../../i18n/context';
-import type { SourceDoc } from '../../pdf/view';
+import { getOutline, type SourceDoc } from '../../pdf/view';
 import ReadPage from './ReadPage';
+import Sidebar, { type SidebarTab } from './Sidebar';
 import { MAX_MATCHES, useSearch } from './useSearch';
 
 const NO_HITS: { boxes: Box[]; active: boolean }[] = [];
@@ -24,10 +26,13 @@ const NO_HITS: { boxes: Box[]; active: boolean }[] = [];
 interface Props {
   pages: PageRef[];
   docs: Record<string, SourceDoc>;
+  thumbs: Record<string, string>;
+  failedThumbs: ReadonlySet<string>;
+  onNeedThumb: (page: PageRef) => void;
 }
 
 /** Continuous view of all pages with zoom and keyboard paging. */
-export default function Reader({ pages, docs }: Props) {
+export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb }: Props) {
   const { t } = useI18n();
   const scroller = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState<Size>({ width: 800, height: 600 });
@@ -37,6 +42,40 @@ export default function Reader({ pages, docs }: Props) {
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const searchField = useRef<HTMLInputElement>(null);
+  const [sidebar, setSidebar] = useState<SidebarTab | null>(null);
+  const asked = useRef(new Set<string>());
+  const [outlines, setOutlines] = useState<Record<string, FileOutline['nodes']>>({});
+
+  // Where each page of each file stands now; the first place when a page is used several times.
+  const positions = useMemo(() => {
+    const map = new Map<string, number>();
+    pages.forEach((p, i) => {
+      const key = `${p.docId}:${p.srcIndex}`;
+      if (!map.has(key)) map.set(key, i);
+    });
+    return map;
+  }, [pages]);
+
+  // Bookmarks are read once per file, when the sidebar is first opened.
+  useEffect(() => {
+    if (!sidebar) return;
+    for (const id of new Set(pages.map((p) => p.docId))) {
+      if (asked.current.has(id) || !docs[id]) continue;
+      asked.current.add(id);
+      getOutline(docs[id])
+        .then((nodes) => setOutlines((o) => ({ ...o, [id]: nodes })))
+        .catch(() => undefined);
+    }
+  }, [sidebar, pages, docs]);
+
+  const outline = useMemo(() => {
+    const files: FileOutline[] = [...new Set(pages.map((p) => p.docId))]
+      .filter((id) => docs[id])
+      .map((id) => ({ docId: id, name: docs[id].name, nodes: outlines[id] ?? [] }));
+    return placeOutline(files, positions);
+  }, [pages, docs, outlines, positions]);
+
+  const linkTarget = useCallback((docId: string, srcIndex: number) => positions.get(`${docId}:${srcIndex}`) ?? null, [positions]);
 
   // Size of every page: its own size, and as shown after the rotation chosen in the page list.
   const baseSizes = useMemo(
@@ -96,6 +135,7 @@ export default function Reader({ pages, docs }: Props) {
     const i = Math.max(0, Math.min(index, l.tops.length - 1));
     el.scrollTo({ top: l.tops[i] - PAD / 2 });
   }, []);
+  const go = goTo;
 
   const search = useSearch(pages, docs, query);
   const matches = search.matches;
@@ -184,6 +224,15 @@ export default function Reader({ pages, docs }: Props) {
   return (
     <div className="reader">
       <div className="reader-bar" role="toolbar" aria-label={t('read.toolbar')}>
+        <button
+          className="side-toggle"
+          aria-pressed={sidebar !== null}
+          title={t('read.sidebar')}
+          aria-label={t('read.sidebar')}
+          onClick={() => setSidebar(sidebar ? null : 'pages')}
+        >
+          ☰
+        </button>
         <label className="page-field">
           {t('read.page')}{' '}
           <input
@@ -251,6 +300,21 @@ export default function Reader({ pages, docs }: Props) {
         </div>
       </div>
 
+      <div className="reader-body">
+      {sidebar && (
+        <Sidebar
+          tab={sidebar}
+          onTab={setSidebar}
+          pages={pages}
+          baseSizes={baseSizes}
+          current={current}
+          thumbs={thumbs}
+          failedThumbs={failedThumbs}
+          onNeedThumb={onNeedThumb}
+          outline={outline}
+          onGo={go}
+        />
+      )}
       <div
         ref={scroller}
         className="reader-scroll"
@@ -272,9 +336,12 @@ export default function Reader({ pages, docs }: Props) {
               size={baseSizes[i]}
               scale={scale}
               hits={hitsByPage.get(i) ?? NO_HITS}
+              linkTarget={linkTarget}
+              onGo={go}
             />
           ))}
         </div>
+      </div>
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import { expect, test as base, type Download, type Page } from '@playwright/test';
 import { unzipSync } from 'fflate';
 import { readFile, rm, writeFile } from 'node:fs/promises';
-import { describePdf, makeHalfBrokenPdf, makePdf, makeProtectedPdf } from '../fixtures';
+import { describePdf, makeHalfBrokenPdf, makePdf, makeProtectedPdf, makeRichPdf } from '../fixtures';
 
 const pdfFile = (name: string, bytes: Uint8Array) => ({ name, mimeType: 'application/pdf', buffer: Buffer.from(bytes) });
 
@@ -347,6 +347,69 @@ test.describe('reading view', () => {
     expect(hitBox.x + hitBox.width).toBeLessThanOrEqual(pageBox.x + pageBox.width + 1);
     expect(hitBox.y).toBeGreaterThanOrEqual(pageBox.y - 1);
     expect(hitBox.y + hitBox.height).toBeLessThanOrEqual(pageBox.y + pageBox.height + 1);
+  });
+
+  const openRich = async (page: Page, ...tags: string[]) => {
+    await page.getByTestId('file-input').setInputFiles(
+      await Promise.all(tags.map(async (tag) => pdfFile(`${tag}.pdf`, await makeRichPdf(tag, 500)))),
+    );
+    await expect(cards(page)).toHaveCount(3 * tags.length);
+    await read(page);
+  };
+  const sidebar = (page: Page) => page.getByRole('complementary', { name: 'Seitenleiste' });
+
+  test('jumps to a page from its thumbnail in the sidebar', async ({ app: page }) => {
+    await openRich(page, 'A');
+    await page.getByRole('button', { name: 'Seitenleiste' }).click();
+    await expect(sidebar(page).locator('.thumb')).toHaveCount(3);
+    await expect(sidebar(page).locator('.thumb img').first()).toBeVisible();
+    await sidebar(page).getByRole('button', { name: 'Zu Seite 3' }).click();
+    await expect(pageField(page)).toHaveValue('3');
+    await expect(sidebar(page).getByRole('button', { name: 'Zu Seite 3' })).toHaveAttribute('aria-current', 'page');
+  });
+
+  test('lists bookmarks and jumps to their pages', async ({ app: page }) => {
+    await openRich(page, 'A');
+    await page.getByRole('button', { name: 'Seitenleiste' }).click();
+    await sidebar(page).getByRole('tab', { name: 'Lesezeichen' }).click();
+    await sidebar(page).getByRole('button', { name: 'A Drei', exact: true }).click();
+    await expect(pageField(page)).toHaveValue('3');
+    await sidebar(page).getByRole('button', { name: 'A Zwei innen' }).click();
+    await expect(pageField(page)).toHaveValue('2');
+  });
+
+  test('greys out a bookmark whose page was deleted', async ({ app: page }) => {
+    await page.getByTestId('file-input').setInputFiles(pdfFile('A.pdf', await makeRichPdf('A', 500)));
+    await expect(cards(page)).toHaveCount(3);
+    await card(page, 2).hover();
+    await card(page, 2).getByRole('button', { name: /löschen/i }).click();
+    await read(page);
+    await page.getByRole('button', { name: 'Seitenleiste' }).click();
+    await sidebar(page).getByRole('tab', { name: 'Lesezeichen' }).click();
+    await expect(sidebar(page).getByRole('button', { name: 'A Drei', exact: true })).toBeDisabled();
+    await expect(sidebar(page).getByRole('button', { name: 'A Eins' })).toBeEnabled();
+  });
+
+  test('gives every file its own heading in the bookmarks', async ({ app: page }) => {
+    await openRich(page, 'A', 'B');
+    await page.getByRole('button', { name: 'Seitenleiste' }).click();
+    await sidebar(page).getByRole('tab', { name: 'Lesezeichen' }).click();
+    await expect(sidebar(page).getByRole('button', { name: 'A.pdf', exact: true })).toBeVisible();
+    await sidebar(page).getByRole('button', { name: 'B.pdf', exact: true }).click();
+    await expect(pageField(page)).toHaveValue('4');
+    await sidebar(page).getByRole('button', { name: 'B Drei', exact: true }).click();
+    await expect(pageField(page)).toHaveValue('6');
+  });
+
+  test('follows links inside the file and opens web links in a new tab', async ({ app: page }) => {
+    await openRich(page, 'A');
+    const links = page.locator('.read-page[data-page="1"] a.page-link');
+    await expect(links).toHaveCount(2);
+    const web = page.locator('a.page-link[href="https://example.org/"]');
+    await expect(web).toHaveAttribute('target', '_blank');
+    await expect(web).toHaveAttribute('rel', /noopener/);
+    await page.locator('a.page-link[title="Zu Seite 3"]').click();
+    await expect(pageField(page)).toHaveValue('3');
   });
 
   test('shows a rotated page turned', async ({ app: page }) => {

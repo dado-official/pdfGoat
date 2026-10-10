@@ -9,7 +9,23 @@ export type ViewRequest =
   | { id: number; type: 'render'; docId: string; pageIndex: number; width: number; rotation: number }
   | { id: number; type: 'text'; docId: string; pageIndex: number }
   | { id: number; type: 'search'; docId: string; pageIndex: number; needle: string }
+  | { id: number; type: 'outline'; docId: string }
+  | { id: number; type: 'links'; docId: string; pageIndex: number }
   | { id: number; type: 'close'; docId: string };
+
+/** A bookmark. `page` counts from 0 in the file; null when it points nowhere inside the file. */
+export interface OutlineNode {
+  title: string;
+  page: number | null;
+  children: OutlineNode[];
+}
+
+/** A clickable area on a page: a jump to another page of the file, or an address. */
+export interface PageLink {
+  box: Box;
+  page?: number;
+  uri?: string;
+}
 
 /** One line of text on a page, in page points (y points down, as drawn). */
 export interface TextLine {
@@ -168,6 +184,47 @@ function searchPage({ docId, pageIndex, needle }: Extract<ViewRequest, { type: '
 
 const MAX_HITS_PER_PAGE = 500;
 
+function outline({ docId }: Extract<ViewRequest, { type: 'outline' }>): OutlineNode[] {
+  const doc = docs.get(docId);
+  type Item = { title?: string; page?: number; down?: Item[] };
+  const convert = (items: Item[]): OutlineNode[] =>
+    items.map((item) => ({
+      title: item.title?.trim() || '–',
+      page: typeof item.page === 'number' && item.page >= 0 ? item.page : null,
+      children: convert(item.down ?? []),
+    }));
+  try {
+    return convert((doc?.loadOutline() ?? []) as Item[]);
+  } catch {
+    // Bookmarks are a convenience; a broken table of contents must not stop the file from opening.
+    return [];
+  }
+}
+
+function pageLinks({ docId, pageIndex }: Extract<ViewRequest, { type: 'links' }>): PageLink[] {
+  const doc = docs.get(docId);
+  if (!doc || !hasPage(doc, pageIndex)) return [];
+  const page = doc.loadPage(pageIndex);
+  const found: PageLink[] = [];
+  try {
+    for (const link of page.getLinks()) {
+      const box = link.getBounds();
+      try {
+        if (link.isExternal()) found.push({ box, uri: link.getURI() });
+        else {
+          const target = doc.resolveLink(link);
+          if (target >= 0) found.push({ box, page: target });
+        }
+      } catch {
+        // A link with an unreadable target is left out.
+      }
+    }
+  } finally {
+    page.destroy();
+  }
+  return found;
+}
+
 const post = (message: ViewResponse, transfer: Transferable[] = []) => self.postMessage(message, { transfer });
 
 self.onmessage = async ({ data }: MessageEvent<ViewRequest>) => {
@@ -184,6 +241,10 @@ self.onmessage = async ({ data }: MessageEvent<ViewRequest>) => {
         return post({ id: data.id, ok: true, result: pageText(data) });
       case 'search':
         return post({ id: data.id, ok: true, result: searchPage(data) });
+      case 'outline':
+        return post({ id: data.id, ok: true, result: outline(data) });
+      case 'links':
+        return post({ id: data.id, ok: true, result: pageLinks(data) });
       case 'close':
         docs.get(data.docId)?.destroy();
         docs.delete(data.docId);

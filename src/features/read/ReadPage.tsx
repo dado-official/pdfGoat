@@ -1,9 +1,10 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import type { Size } from '../../core/readerLayout';
+import { safeExternalUrl } from '../../core/outline';
 import { lineStyle, overlayTransform, type Box } from '../../core/textLayer';
 import type { PageRef } from '../../core/types';
 import { useI18n } from '../../i18n/context';
-import { getText, renderPage, type SourceDoc, type TextLine } from '../../pdf/view';
+import { getLinks, getText, renderPage, type PageLink, type SourceDoc, type TextLine } from '../../pdf/view';
 import { useNearViewport } from '../../ui/useNearViewport';
 
 interface Props {
@@ -20,6 +21,9 @@ interface Props {
   scale: number;
   /** Search matches on this page. */
   hits: { boxes: Box[]; active: boolean }[];
+  /** Position in the page list of a page of this page's file, or null when it was deleted. */
+  linkTarget: (docId: string, srcIndex: number) => number | null;
+  onGo: (position: number) => void;
 }
 
 let measuring: CanvasRenderingContext2D | null = null;
@@ -36,13 +40,14 @@ function naturalWidth(text: string, size: number): number {
 const MAX_RENDER_WIDTH = 2400;
 
 /** One page of the reading view. It has its final size from the start and draws itself while it is near the screen. */
-function ReadPage({ page, doc, number, width, height, damaged, size, scale, hits }: Props) {
+function ReadPage({ page, doc, number, width, height, damaged, size, scale, hits, linkTarget, onGo }: Props) {
   const { t } = useI18n();
   const root = useRef<HTMLDivElement>(null);
   const near = useNearViewport(root);
   const [image, setImage] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [lines, setLines] = useState<TextLine[] | null>(null);
+  const [links, setLinks] = useState<PageLink[]>([]);
   const current = useRef<string | null>(null);
   const renderWidth = Math.min(width, MAX_RENDER_WIDTH);
 
@@ -79,11 +84,18 @@ function ReadPage({ page, doc, number, width, height, damaged, size, scale, hits
 
   // The text is only held while the page is near, like its image.
   useEffect(() => {
-    if (damaged || !near) return setLines(null);
+    if (damaged || !near) {
+      setLines(null);
+      setLinks([]);
+      return;
+    }
     let cancelled = false;
     getText(doc, page.srcIndex)
       .then((l) => !cancelled && setLines(l))
       .catch(() => !cancelled && setLines(null));
+    getLinks(doc, page.srcIndex)
+      .then((l) => !cancelled && setLinks(l))
+      .catch(() => !cancelled && setLinks([]));
     return () => {
       cancelled = true;
     };
@@ -109,7 +121,7 @@ function ReadPage({ page, doc, number, width, height, damaged, size, scale, hits
       data-page={number}
     >
       {image && !problem && <img src={image} alt="" draggable={false} />}
-      {!problem && (hits.length > 0 || shapes.length > 0) && (
+      {!problem && (hits.length > 0 || shapes.length > 0 || links.length > 0) && (
         <div
           className="overlay"
           style={{ width: size.width, height: size.height, transform: overlayTransform(size, page.rotation, scale) }}
@@ -131,6 +143,34 @@ function ReadPage({ page, doc, number, width, height, damaged, size, scale, hits
               </span>
             ))}
           </div>
+          {links.map((link, i) => {
+            const style = { left: link.box[0], top: link.box[1], width: link.box[2] - link.box[0], height: link.box[3] - link.box[1] };
+            if (link.uri !== undefined) {
+              const url = safeExternalUrl(link.uri);
+              return url ? (
+                <a key={i} className="page-link" style={style} href={url} target="_blank" rel="noopener noreferrer" title={url}>
+                  <span className="sr-only">{url}</span>
+                </a>
+              ) : null;
+            }
+            const target = link.page === undefined ? null : linkTarget(page.docId, link.page);
+            if (target === null) return null;
+            return (
+              <a
+                key={i}
+                className="page-link"
+                style={style}
+                href="#"
+                title={t('read.linkToPage', { number: target + 1 })}
+                onClick={(e) => {
+                  e.preventDefault();
+                  onGo(target);
+                }}
+              >
+                <span className="sr-only">{t('read.linkToPage', { number: target + 1 })}</span>
+              </a>
+            );
+          })}
         </div>
       )}
       {problem && (

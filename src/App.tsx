@@ -293,7 +293,7 @@ export default function App() {
 
           <main>
             {pages.length > 0 && view === 'read' ? (
-              <Reader pages={pages} docs={docs} />
+              <Reader pages={pages} docs={docs} thumbs={thumbs} failedThumbs={failedThumbs} onNeedThumb={requestThumb} />
             ) : pages.length > 0 ? (
               <PageGrid
                 state={state}

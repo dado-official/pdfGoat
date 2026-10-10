@@ -4,9 +4,17 @@ import { AppError } from '../core/errors';
 import { checkFileSize, MAX_FILE_BYTES, toMegabytes } from '../core/limits';
 import type { PageRef } from '../core/types';
 import type { BuildSource } from './build';
-import type { Box, OpenResult, TextLine, ViewRequest, ViewResponse } from './view.worker';
+import type {
+  Box,
+  OpenResult,
+  OutlineNode,
+  PageLink,
+  TextLine,
+  ViewRequest,
+  ViewResponse,
+} from './view.worker';
 
-export type { Box, TextLine };
+export type { Box, OutlineNode, PageLink, TextLine };
 
 export interface SourceDoc extends BuildSource {
   id: string;
@@ -139,3 +147,10 @@ export const getText = (doc: SourceDoc, srcIndex: number) =>
 /** Boxes of every match of `needle` on one page. */
 export const searchPage = (doc: SourceDoc, srcIndex: number, needle: string) =>
   call<Box[][]>({ type: 'search', docId: doc.id, pageIndex: srcIndex, needle });
+
+/** The bookmarks of a file. */
+export const getOutline = (doc: SourceDoc) => call<OutlineNode[]>({ type: 'outline', docId: doc.id });
+
+/** The links on one page. */
+export const getLinks = (doc: SourceDoc, srcIndex: number) =>
+  call<PageLink[]>({ type: 'links', docId: doc.id, pageIndex: srcIndex });
