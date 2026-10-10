@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PageRef } from '../../core/types';
 import { useI18n } from '../../i18n/context';
-import { renderPage, type SourceDoc } from '../../pdf/view';
+import { renderFinal } from '../../pdf/render';
+import type { SourceDoc } from '../../pdf/view';
 
 interface Props {
-  doc: SourceDoc;
+  docs: Record<string, SourceDoc>;
+  date: string;
   page: PageRef;
   number: number;
   total: number;
@@ -12,7 +14,7 @@ interface Props {
   onStep: (step: number) => void;
 }
 
-export default function Preview({ doc, page, number, total, onClose, onStep }: Props) {
+export default function Preview({ docs, date, page, number, total, onClose, onStep }: Props) {
   const { t } = useI18n();
   const dialog = useRef<HTMLDialogElement>(null);
   // Remember which page/rotation the image belongs to, so a stale one is never shown.
@@ -29,7 +31,7 @@ export default function Preview({ doc, page, number, total, onClose, onStep }: P
     let cancelled = false;
     let made: string | null = null;
     const width = Math.min(window.innerWidth - 64, 1000);
-    renderPage(doc, page.srcIndex, { width, rotation: page.rotation, hidden: page.removed, annots: page.annots, fields: page.fields })
+    renderFinal(page, docs, { width, number, total, date })
       .then((u) => {
         made = u;
         if (cancelled) URL.revokeObjectURL(u);
@@ -43,7 +45,9 @@ export default function Preview({ doc, page, number, total, onClose, onStep }: P
       cancelled = true;
       if (made) URL.revokeObjectURL(made);
     };
-  }, [doc, page.srcIndex, page.rotation, page.removed, page.annots, page.fields, key]);
+    // The page object stands for everything that is drawn: any change to the page replaces it.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [docs, page, number, total, date, key]);
 
   return (
     <dialog

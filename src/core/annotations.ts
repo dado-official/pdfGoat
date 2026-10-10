@@ -15,7 +15,9 @@ export type AnnotKind =
   | 'circle'
   | 'line'
   | 'arrow'
-  | 'stamp';
+  | 'stamp'
+  /** A clickable area; `contents` holds the address. */
+  | 'link';
 
 export type Pt = [number, number];
 
@@ -38,6 +40,8 @@ export interface Annot {
   width?: number;
   /** Font size of a text box, in points. */
   fontSize?: number;
+  /** Written into the page itself when saving (text, pictures) instead of being a comment. */
+  embed?: boolean;
   /** What a filled-in item is, for the list: a signature, initials, a check mark or a date. */
   tag?: 'signature' | 'initials' | 'check' | 'date';
   /** Stamp: the picture as PNG bytes. */

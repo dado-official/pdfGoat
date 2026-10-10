@@ -23,6 +23,7 @@ import CommentBar from '../comment/CommentBar';
 import CommentPanel, { type FileComments } from '../comment/CommentPanel';
 import { useClearSelection, type Picture, type Tool } from '../comment/tools';
 import SignatureDialog from '../form/SignatureDialog';
+import { imagePicture } from '../comment/pictures';
 import type { StampName } from '../comment/stamps';
 import ReadPage from './ReadPage';
 import Sidebar, { type SidebarTab } from './Sidebar';
@@ -69,6 +70,8 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
   const [panel, setPanel] = useState(false);
   const [signing, setSigning] = useState<'signature' | 'initials' | null>(null);
   const [picture, setPicture] = useState<Picture | null>(null);
+  const pictureInput = useRef<HTMLInputElement>(null);
+  const [pictureProblem, setPictureProblem] = useState(false);
   const [today] = useState(() => new Date());
   const dateText = useMemo(() => today.toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-GB'), [today, lang]);
   const fill = useCallback((page: PageRef, fields: Record<number, string>) => onFill(page.id, fields), [onFill]);
@@ -420,6 +423,7 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
         onTool={(next) => {
           // A signature is made first, then placed with a click.
           if (next === 'signature' || next === 'initials') return setSigning(next);
+          if (next === 'embedImage') return pictureInput.current?.click();
           setTool(next);
           if (next && !picked.current) setColor(next === 'highlight' || next === 'note' ? DEFAULT_COLOR : SHAPE_COLOR);
         }}
@@ -431,6 +435,7 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
         stamp={stampName}
         onStamp={setStampName}
       />
+      {pictureProblem && <p className="sign-problem picture-problem" role="alert">{t('sign.imageFailed')}</p>}
       <div className="reader-body">
       {sidebar && (
         <Sidebar
@@ -462,6 +467,7 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
               page={p}
               doc={docs[p.docId]}
               number={i + 1}
+              total={pages.length}
               width={layout.widths[i]}
               height={layout.heights[i]}
               damaged={!docs[p.docId]?.sizes[p.srcIndex]}
@@ -484,6 +490,27 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
           ))}
         </div>
       </div>
+      <input
+        ref={pictureInput}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        hidden
+        data-testid="picture-input"
+        aria-label={t('comment.pickPicture')}
+        onChange={async (e) => {
+          const f = e.target.files?.[0];
+          e.target.value = '';
+          if (!f) return;
+          setPictureProblem(false);
+          try {
+            setPicture(await imagePicture(f, 1600));
+            setTool('embedImage');
+          } catch {
+            setPicture(null);
+            setPictureProblem(true);
+          }
+        }}
+      />
       {signing && (
         <SignatureDialog
           kind={signing}

@@ -2,10 +2,14 @@
 // The page list is derived from it, undo removes the last entry, and later milestones add
 // commands for comments, form values and redactions that the engine applies when saving.
 import type { Annot } from './annotations';
+import type { Edit } from './edits';
+import type { Mark } from './marks';
+import type { Box } from './textLayer';
 import type { PageRef } from './types';
 
 export type Change =
-  | { type: 'add'; pages: PageRef[] }
+  /** Adds pages at the end, or before the page at position `at`. */
+  | { type: 'add'; pages: PageRef[]; at?: number }
   | { type: 'rotate'; ids: string[]; delta: number }
   | { type: 'remove'; ids: string[] }
   | { type: 'move'; id: string; step: number }
@@ -14,7 +18,16 @@ export type Change =
   /** Replaces the comments of one page: new ones, and which of the file's own were deleted. */
   | { type: 'annotate'; id: string; annots: Annot[]; removed: number[] }
   /** Replaces the form values of one page. */
-  | { type: 'fill'; id: string; fields: Record<number, string> };
+  | { type: 'fill'; id: string; fields: Record<number, string> }
+  /** Gives pages a header, footer, page number or watermark; `markId` removes one again. */
+  | { type: 'mark'; ids: string[]; mark: Mark }
+  | { type: 'unmark'; ids: string[]; markId: string }
+  /** Sets the visible area of pages (null: all of the page), by page id. */
+  | { type: 'crop'; crops: Record<string, Box | null> }
+  /** Sets a new size for pages, in points as shown, by page id (null: keep the size). */
+  | { type: 'resize'; sizes: Record<string, [number, number] | null> }
+  /** Replaces the edits of the existing text and pictures of one page. */
+  | { type: 'edit'; id: string; edits: Edit[] };
 
 export const normalizeRotation = (deg: number) => ((deg % 360) + 360) % 360;
 
@@ -25,7 +38,9 @@ export const normalizeRotation = (deg: number) => ((deg % 360) + 360) % 360;
 export function applyChange(pages: PageRef[], change: Change): PageRef[] {
   switch (change.type) {
     case 'add':
-      return change.pages.length ? [...pages, ...change.pages] : pages;
+      if (!change.pages.length) return pages;
+      if (change.at === undefined) return [...pages, ...change.pages];
+      return [...pages.slice(0, change.at), ...change.pages, ...pages.slice(change.at)];
 
     case 'rotate': {
       if (!change.ids.length) return pages;
@@ -71,6 +86,56 @@ export function applyChange(pages: PageRef[], change: Change): PageRef[] {
       if (same(old.annots, change.annots) && same(old.removed, change.removed)) return pages;
       const next = [...pages];
       next[i] = { ...old, annots: change.annots, removed: change.removed };
+      return next;
+    }
+
+    case 'mark': {
+      const ids = new Set(change.ids);
+      if (!pages.some((p) => ids.has(p.id))) return pages;
+      return pages.map((p) => (ids.has(p.id) ? { ...p, marks: [...(p.marks ?? []), change.mark] } : p));
+    }
+
+    case 'unmark': {
+      const ids = new Set(change.ids);
+      if (!pages.some((p) => ids.has(p.id) && p.marks?.some((m) => m.id === change.markId))) return pages;
+      return pages.map((p) => {
+        if (!ids.has(p.id) || !p.marks) return p;
+        const marks = p.marks.filter((m) => m.id !== change.markId);
+        return { ...p, marks: marks.length ? marks : undefined };
+      });
+    }
+
+    case 'crop': {
+      let changed = false;
+      const next = pages.map((p) => {
+        if (!(p.id in change.crops)) return p;
+        const crop = change.crops[p.id] ?? undefined;
+        if (JSON.stringify(crop) === JSON.stringify(p.crop)) return p;
+        changed = true;
+        return { ...p, crop };
+      });
+      return changed ? next : pages;
+    }
+
+    case 'resize': {
+      let changed = false;
+      const next = pages.map((p) => {
+        if (!(p.id in change.sizes)) return p;
+        const size = change.sizes[p.id] ?? undefined;
+        if (JSON.stringify(p.size) === JSON.stringify(size)) return p;
+        changed = true;
+        return { ...p, size };
+      });
+      return changed ? next : pages;
+    }
+
+    case 'edit': {
+      const i = pages.findIndex((p) => p.id === change.id);
+      if (i < 0) return pages;
+      const old = pages[i].edits ?? [];
+      if (old.length === change.edits.length && change.edits.every((e, k) => e === old[k])) return pages;
+      const next = [...pages];
+      next[i] = { ...pages[i], edits: change.edits.length ? change.edits : undefined };
       return next;
     }
 

@@ -60,6 +60,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case 'reverse':
     case 'annotate':
     case 'fill':
+    case 'mark':
+    case 'unmark':
+    case 'crop':
+    case 'resize':
+    case 'edit':
       return record(state, action);
 
     case 'toggleSelect': {

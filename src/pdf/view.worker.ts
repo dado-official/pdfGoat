@@ -11,6 +11,7 @@ export type ViewRequest =
   | { id: number; type: 'open'; docId: string; name: string; bytes: Uint8Array; password?: string }
   | { id: number; type: 'render'; docId: string; pageIndex: number; width: number; rotation: number; hidden?: number[]; annots?: Annot[]; fields?: Record<number, string>; hideForms?: boolean }
   | { id: number; type: 'fields'; docId: string; pageIndex: number }
+  | { id: number; type: 'renderBytes'; bytes: Uint8Array; width: number }
   | { id: number; type: 'comments'; docId: string; pageIndex: number }
   | { id: number; type: 'text'; docId: string; pageIndex: number }
   | { id: number; type: 'search'; docId: string; pageIndex: number; needle: string }
@@ -138,7 +139,10 @@ function render(engine: Engine, { docId, pageIndex, width, rotation, hidden, ann
     const existing = hidden?.length ? listComments(page) : [];
     const restore = (hidden ?? []).flatMap((i) => (existing[i] ? [[existing[i], existing[i].getFlags()] as const] : []));
     for (const [annot, flags] of restore) annot.setFlags(flags | HIDDEN);
-    const added = annots?.length ? listNew(engine, page, annots) : [];
+    // Text and pictures that become part of the page cannot be taken back; those pages are drawn
+    // from a finished copy instead (see renderBytes).
+    const temporary = annots?.filter((a) => !a.embed && a.kind !== 'link');
+    const added = temporary?.length ? listNew(engine, page, temporary) : [];
     // Typed values are shown for this drawing only; the reading view draws its own fields instead.
     const undoFields = fields && Object.keys(fields).length ? applyFields(page, fields) : null;
     const undoHide = hideForms ? hideWidgets(page) : null;
@@ -157,6 +161,28 @@ function render(engine: Engine, { docId, pageIndex, width, rotation, hidden, ann
     }
   } finally {
     page.destroy();
+  }
+}
+
+/** Draws the first page of a finished PDF, for the pages whose content was changed. */
+function renderBytes(engine: Engine, { bytes, width }: Extract<ViewRequest, { type: 'renderBytes' }>): Uint8Array {
+  const doc = new engine.PDFDocument(bytes);
+  try {
+    const page = doc.loadPage(0);
+    try {
+      const [x0, , x1] = page.getBounds();
+      const scale = width / (x1 - x0);
+      const pixmap = page.toPixmap(engine.Matrix.scale(scale, scale), engine.ColorSpace.DeviceRGB, false, true);
+      try {
+        return pixmap.asPNG().slice();
+      } finally {
+        pixmap.destroy();
+      }
+    } finally {
+      page.destroy();
+    }
+  } finally {
+    doc.destroy();
   }
 }
 
@@ -310,6 +336,10 @@ self.onmessage = async ({ data }: MessageEvent<ViewRequest>) => {
         return post({ id: data.id, ok: true, result: open(engine, data) });
       case 'render': {
         const png = render(engine, data);
+        return post({ id: data.id, ok: true, result: png }, [png.buffer]);
+      }
+      case 'renderBytes': {
+        const png = renderBytes(engine, data);
         return post({ id: data.id, ok: true, result: png }, [png.buffer]);
       }
       case 'comments':

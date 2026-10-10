@@ -2,7 +2,7 @@ import { COMMENT_COLORS } from '../../core/annotations';
 import { useI18n } from '../../i18n/context';
 import type { MessageKey as TKey } from '../../i18n/de';
 import { STAMPS, type StampName } from './stamps';
-import { FILL_TOOLS, TOOLS, type Tool } from './tools';
+import { FILL_TOOLS, INSERT_TOOLS, TOOLS, type Tool } from './tools';
 
 interface Props {
   tool: Tool;
@@ -27,6 +27,13 @@ export default function CommentBar({ tool, onTool, color, onColor, stamp, onStam
       </div>
       <div className="tool-group" role="group" aria-label={t('comment.fillTools')}>
         {FILL_TOOLS.map((k) => (
+          <button key={k} aria-pressed={tool === k} data-tool={k} onClick={() => onTool(tool === k ? null : k)}>
+            {t(`comment.tool.${k}` as TKey)}
+          </button>
+        ))}
+      </div>
+      <div className="tool-group" role="group" aria-label={t('comment.insertTools')}>
+        {INSERT_TOOLS.map((k) => (
           <button key={k} aria-pressed={tool === k} data-tool={k} onClick={() => onTool(tool === k ? null : k)}>
             {t(`comment.tool.${k}` as TKey)}
           </button>

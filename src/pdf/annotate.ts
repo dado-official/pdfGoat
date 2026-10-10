@@ -2,6 +2,8 @@
 // as real PDF annotations. No DOM here, so it runs in the workers and in Node tests.
 import type { PDFAnnotation, PDFPage, Quad } from 'mupdf';
 import { rgb, type Annot } from '../core/annotations';
+import { safeExternalUrl } from '../core/outline';
+import { embedPicture, embedText } from './embed';
 import type { Mupdf } from './mupdf';
 
 /** Types that are not comments: links, form fields and the pop-ups that belong to a comment. */
@@ -21,8 +23,25 @@ export function deleteComments(page: PDFPage, positions: readonly number[]) {
 
 const quadOf = ([x0, y0, x1, y1]: readonly number[]): Quad => [x0, y0, x1, y0, x0, y1, x1, y1];
 
+/** Text and pictures that become part of the page itself. */
+function addEmbedded(engine: Mupdf, page: PDFPage, a: Annot) {
+  const doc = page._doc;
+  if (a.kind === 'text') {
+    embedText(engine, doc, page, { text: a.contents, x: a.box[0], y: a.box[1], width: a.box[2] - a.box[0], size: a.fontSize ?? 12, color: a.color });
+  } else if (a.kind === 'stamp' && a.image) {
+    embedPicture(engine, doc, page, { png: a.image, box: a.box });
+  }
+}
+
 /** Writes one comment onto a page. The page's coordinates are the same as the ones the comment uses. */
 export function addComment(engine: Mupdf, page: PDFPage, a: Annot) {
+  if (a.embed) return addEmbedded(engine, page, a);
+  if (a.kind === 'link') {
+    // Only addresses that are safe to open become links.
+    const url = safeExternalUrl(a.contents.trim());
+    if (url) page.createLink(a.box, url);
+    return;
+  }
   const color = rgb(a.color);
   const width = a.width ?? 1.5;
   const date = new Date(a.created);

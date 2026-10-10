@@ -144,6 +144,16 @@ export async function renderPage(
   }
 }
 
+/** Draws the first page of a finished PDF. */
+export async function renderBytes(bytes: Uint8Array, width: number, dpr = 1): Promise<string> {
+  try {
+    const png = await call<Uint8Array>({ type: 'renderBytes', bytes, width: Math.round(width * dpr) });
+    return URL.createObjectURL(new Blob([png as BlobPart], { type: 'image/png' }));
+  } catch {
+    throw new AppError('renderFailed');
+  }
+}
+
 export const closePdf = (doc: SourceDoc) => call({ type: 'close', docId: doc.id });
 
 /** The text of one page with positions, for selecting and copying. */

@@ -2,15 +2,13 @@
 // and a long job can be cancelled by ending the worker.
 import { AppError } from '../core/errors';
 import type { PageRef } from '../core/types';
-import { bytesOf, type BuildSource } from './build';
+import { bytesOf, type BuildOptions, type BuildSource } from './build';
 import type { WorkerRequest, WorkerResponse, WorkerSource } from './engine.worker';
 
-export interface JobOptions {
+export interface JobOptions extends BuildOptions {
   /** Fraction of the work that is done, 0 to 1. */
   onProgress?: (fraction: number) => void;
   signal?: AbortSignal;
-  /** Write form fields into the pages, so they can no longer be changed. */
-  flatten?: boolean;
 }
 
 /** Thrown when a job is cancelled. Not an error the user needs to be told about. */
@@ -58,7 +56,7 @@ function stop(reason: unknown) {
 export async function buildPdf(
   pages: PageRef[],
   sources: Record<string, BuildSource>,
-  { onProgress, signal, flatten }: JobOptions = {},
+  { onProgress, signal, flatten, date, numbering }: JobOptions = {},
 ): Promise<Uint8Array> {
   if (signal?.aborted) throw new CancelledError();
   // The worker has no access to the files, so the bytes of the files in use are handed over.
@@ -82,7 +80,7 @@ export async function buildPdf(
       onProgress,
     });
     // The bytes are copied, not moved: the opened files stay available for the next save.
-    const request: WorkerRequest = { id, pages, sources: payload, flatten };
+    const request: WorkerRequest = { id, pages, sources: payload, options: { flatten, date, numbering } };
     worker!.postMessage(request);
   });
 }

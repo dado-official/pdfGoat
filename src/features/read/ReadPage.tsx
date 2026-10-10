@@ -2,6 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import type { Size } from '../../core/readerLayout';
 import { safeExternalUrl } from '../../core/outline';
 import { lineStyle, overlayTransform, type Box } from '../../core/textLayer';
+import { markPosition, markText } from '../../core/marks';
 import type { PageRef } from '../../core/types';
 import { useI18n } from '../../i18n/context';
 import { getFields, getLinks, getText, renderPage, type FormField, type PageLink, type SourceDoc, type TextLine } from '../../pdf/view';
@@ -16,6 +17,8 @@ interface Props {
   page: PageRef;
   doc: SourceDoc;
   number: number;
+  /** Number of pages in the document, for page numbers. */
+  total: number;
   /** Size on screen in CSS pixels. */
   width: number;
   height: number;
@@ -59,7 +62,7 @@ function naturalWidth(text: string, size: number): number {
 const MAX_RENDER_WIDTH = 2400;
 
 /** One page of the reading view. It has its final size from the start and draws itself while it is near the screen. */
-function ReadPage({ page, doc, number, width, height, damaged, size, scale, hits, linkTarget, onGo, tool, color, stamp, dateText, picture, selectedId, onSelect, onAnnots, onPlaced, onFill }: Props) {
+function ReadPage({ page, doc, number, total, width, height, damaged, size, scale, hits, linkTarget, onGo, tool, color, stamp, dateText, picture, selectedId, onSelect, onAnnots, onPlaced, onFill }: Props) {
   const { t } = useI18n();
   const root = useRef<HTMLDivElement>(null);
   const near = useNearViewport(root);
@@ -197,6 +200,30 @@ function ReadPage({ page, doc, number, width, height, damaged, size, scale, hits
               >
                 <span className="sr-only">{t('read.linkToPage', { number: target + 1 })}</span>
               </a>
+            );
+          })}
+        </div>
+      )}
+      {!problem && (page.marks?.length || page.crop) && (
+        <div className="annot-layer page-extras" style={{ width: size.width, height: size.height, transform: overlayTransform(size, page.rotation, scale) }}>
+          {page.crop && (
+            <div
+              className="crop-mask"
+              style={{ left: page.crop[0], top: page.crop[1], width: page.crop[2] - page.crop[0], height: page.crop[3] - page.crop[1] }}
+            />
+          )}
+          {page.marks?.map((m) => {
+            const text = markText(m, number, total, dateText);
+            const w = naturalWidth(text, m.size);
+            const { x, y } = markPosition(m.place, size, w, m.size);
+            const style: React.CSSProperties = { left: x, top: y, fontSize: m.size, color: m.color, opacity: m.opacity };
+            if (m.place === 'center' && m.diagonal) {
+              Object.assign(style, { left: size.width / 2 - w / 2, transform: 'rotate(-45deg)' });
+            }
+            return (
+              <span key={m.id} className="page-mark" style={style}>
+                {text}
+              </span>
             );
           })}
         </div>

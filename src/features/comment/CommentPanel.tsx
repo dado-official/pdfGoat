@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Annot } from '../../core/annotations';
+import { safeExternalUrl } from '../../core/outline';
+import { unsupportedChars } from '../../core/winansi';
 import type { PageRef } from '../../core/types';
 import type { MessageKey } from '../../i18n/de';
 import { useI18n } from '../../i18n/context';
@@ -34,6 +36,11 @@ const FILE_KINDS: Record<string, MessageKey> = {
   Line: 'comment.kind.line',
   Stamp: 'comment.kind.stamp',
 };
+
+const kindLabel = (a: Annot): MessageKey =>
+  a.embed && a.kind === 'text' ? 'comment.kind.embedText'
+  : a.embed && a.kind === 'stamp' ? 'comment.kind.embedImage'
+  : (`comment.kind.${a.tag ?? a.kind}` as MessageKey);
 
 /** The comment list on the right: the file's own comments and the new ones, page by page. */
 export default function CommentPanel({ pages, fileComments, selectedId, onSelect, onGo, onChange, onRemoveFile }: Props) {
@@ -86,12 +93,13 @@ export default function CommentPanel({ pages, fileComments, selectedId, onSelect
                   }}
                 >
                   <span className="comment-dot" style={{ background: a.color }} />
-                  <span>{t(`comment.kind.${a.tag ?? a.kind}` as MessageKey)}</span>
+                  <span>{t(kindLabel(a))}</span>
                   <span className="comment-page">{t('comment.onPage', { number: e.page + 1 })}</span>
                 </button>
                 {selected ? (
                   <CommentEditor
                     key={a.id}
+                    mode={a.kind === 'link' ? 'link' : a.embed ? 'embed' : 'comment'}
                     value={a.contents}
                     onCommit={(contents) => onChange(e.page, annots.map((x) => (x.id === a.id ? { ...x, contents } : x)))}
                   />
@@ -121,7 +129,7 @@ export default function CommentPanel({ pages, fileComments, selectedId, onSelect
  * A text field that records the change when it is left, not with every key. It is also recorded
  * when the field goes away without losing focus first (a click elsewhere deselects the comment).
  */
-function CommentEditor({ value, onCommit }: { value: string; onCommit: (text: string) => void }) {
+function CommentEditor({ value, onCommit, mode = 'comment' }: { value: string; onCommit: (text: string) => void; mode?: 'comment' | 'link' | 'embed' }) {
   const { t } = useI18n();
   const [draft, setDraft] = useState(value);
   const latest = useRef({ draft, value, onCommit });
@@ -135,15 +143,23 @@ function CommentEditor({ value, onCommit }: { value: string; onCommit: (text: st
     },
     [],
   );
+  // Inserted text is written with a font that has western European characters only.
+  const missing = mode === 'embed' ? unsupportedChars(draft) : [];
+  const bad = mode === 'link' && draft.trim() !== '' && !safeExternalUrl(draft.trim());
   return (
-    <textarea
-      className="comment-edit"
-      aria-label={t('comment.edit')}
-      autoFocus={value === ''}
-      value={draft}
-      rows={3}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={() => draft !== value && onCommit(draft)}
-    />
+    <>
+      <textarea
+        className="comment-edit"
+        aria-label={t(mode === 'link' ? 'comment.address' : 'comment.edit')}
+        placeholder={mode === 'link' ? 'https://' : undefined}
+        autoFocus={value === ''}
+        value={draft}
+        rows={mode === 'link' ? 1 : 3}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => draft !== value && onCommit(draft)}
+      />
+      {missing.length > 0 && <p className="sign-problem" role="status">{t('comment.missingChars', { chars: missing.join(' ') })}</p>}
+      {bad && <p className="sign-problem" role="status">{t('comment.badAddress')}</p>}
+    </>
   );
 }

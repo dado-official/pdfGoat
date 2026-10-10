@@ -78,6 +78,23 @@ export default function AnnotLayer({ size, rotation, scale, annots, tool, color,
       case 'arrow':
         if (dist > 6) made = { ...base, box: boundsOf([d.start, end], 2), line: [d.start, end], width: 2 };
         break;
+      case 'embedText': {
+        const box = dist > 12 ? boxBetween(d.start, end) : ([d.start[0], d.start[1], d.start[0] + 200, d.start[1] + 30] as const);
+        made = { ...base, kind: 'text', embed: true, box: [...box], fontSize: 12 };
+        break;
+      }
+      case 'link':
+        if (dist > 6) made = { ...base, kind: 'link', color: '#3347c9', box: boxBetween(d.start, end) };
+        break;
+      case 'embedImage': {
+        if (!picture) return;
+        const w = dist > 12 ? Math.abs(end[0] - d.start[0]) : Math.min(200, picture.ratio >= 1 ? 200 : 200 * picture.ratio);
+        const h = w / picture.ratio;
+        const x = dist > 12 ? Math.min(d.start[0], end[0]) : d.start[0];
+        const y = dist > 12 ? Math.min(d.start[1], end[1]) : d.start[1];
+        made = { ...base, kind: 'stamp', embed: true, color: '#14161a', box: [x, y, x + w, y + h], image: picture.bytes };
+        break;
+      }
       case 'date':
         made = { ...base, kind: 'text', tag: 'date', contents: dateText, box: [d.start[0], d.start[1], d.start[0] + 90, d.start[1] + 18], fontSize: 12 };
         break;
@@ -279,6 +296,13 @@ function Shape({ a, selected, onDown, onMove, onUp }: ShapeProps) {
         </g>
       );
     }
+    case 'link':
+      return (
+        <g {...handlers} className="annot-shape" style={{ pointerEvents: 'all' }}>
+          <rect x={a.box[0]} y={a.box[1]} width={a.box[2] - a.box[0]} height={a.box[3] - a.box[1]} fill="rgb(51 71 201 / 0.1)" stroke={a.color} strokeWidth={1} strokeDasharray="4 3" />
+          {ring}
+        </g>
+      );
     case 'stamp':
       return (
         <g {...handlers} style={{ pointerEvents: 'all' }}>
@@ -302,6 +326,6 @@ function Draft({ tool, color, d }: { tool: NonNullable<Tool>; color: string; d: 
   if (tool === 'line' || tool === 'arrow') return <line {...common} x1={d.start[0]} y1={d.start[1]} x2={end[0]} y2={end[1]} />;
   const b = boxBetween(d.start, end);
   if (tool === 'circle') return <ellipse {...common} cx={(b[0] + b[2]) / 2} cy={(b[1] + b[3]) / 2} rx={(b[2] - b[0]) / 2} ry={(b[3] - b[1]) / 2} />;
-  if (tool === 'square' || tool === 'text' || tool === 'stamp' || tool === 'signature' || tool === 'initials') return <rect {...common} x={b[0]} y={b[1]} width={b[2] - b[0]} height={b[3] - b[1]} />;
+  if (tool === 'square' || tool === 'text' || tool === 'stamp' || tool === 'signature' || tool === 'initials' || tool === 'embedText' || tool === 'embedImage' || tool === 'link') return <rect {...common} x={b[0]} y={b[1]} width={b[2] - b[0]} height={b[3] - b[1]} />;
   return null;
 }

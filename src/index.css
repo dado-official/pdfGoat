@@ -846,3 +846,9 @@ textarea.form-field { padding-top: 2px; resize: none; line-height: 1.2; }
 .sign-saved img { max-width: 100%; max-height: 140px; border: 1px solid var(--edge); border-radius: var(--radius); background: #fff; padding: 8px; }
 .sign-remember { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 14px; }
 .sign-problem { margin: 0 0 8px; color: var(--danger); font-size: 14px; }
+
+/* Header, footer and cropping shown on the page */
+.page-extras { overflow: hidden; }
+.page-mark { position: absolute; white-space: pre; font-family: Helvetica, Arial, sans-serif; line-height: 1.2; pointer-events: none; }
+.crop-mask { position: absolute; box-shadow: 0 0 0 9999px rgb(20 22 26 / 0.38); outline: 1px dashed var(--signal); pointer-events: none; }
+.picture-problem { margin: 0; padding: 6px 12px; background: var(--danger-soft); }

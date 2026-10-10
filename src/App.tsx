@@ -13,8 +13,7 @@ import {
 } from './state/workspace';
 import { zip } from './pdf/build';
 import { buildPdf, CancelledError, type JobOptions } from './pdf/engine';
-import { closePdf, openPdf, renderPage, type OpenedPdf, type SourceDoc } from './pdf/view';
-import { turnedSize } from './core/readerLayout';
+import { closePdf, openPdf, type OpenedPdf, type SourceDoc } from './pdf/view';
 import { useI18n } from './i18n/context';
 import { download } from './ui/download';
 import GoatMark from './ui/GoatMark';
@@ -22,6 +21,15 @@ import { useFileDrop, useShortcuts } from './ui/useWindowEvents';
 import DropZone from './features/open/DropZone';
 import PasswordDialog from './features/open/PasswordDialog';
 import Reader from './features/read/Reader';
+import { finalSize } from './core/pages';
+import { renderFinal } from './pdf/render';
+import PageTools from './features/edit/PageTools';
+import MarkDialog from './features/edit/MarkDialog';
+import CropDialog from './features/edit/CropDialog';
+import ResizeDialog from './features/edit/ResizeDialog';
+import { blankPdf } from './core/blank';
+import { cropFromMargins, MM, paperSize, PAPERS } from './core/paper';
+import type { PageRef } from './core/types';
 import PageGrid from './features/organize/PageGrid';
 import Preview from './features/organize/Preview';
 import Toolbar from './features/organize/Toolbar';
@@ -58,13 +66,44 @@ export default function App() {
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [splitOpen, setSplitOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
+  const [pageDialog, setPageDialog] = useState<'mark' | 'crop' | 'resize' | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [passwordAsk, setPasswordAsk] = useState<{ name: string; wrong: boolean; answer: (p: string | null) => void } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const { pages, selected } = state;
   // Counted from the pages, so a file whose pages were all removed or undone no longer counts.
-  const docCount = new Set(pages.map((p) => p.docId)).size;
+  const ownPages = pages.filter((p) => !docs[p.docId]?.generated);
+  const docCount = new Set(ownPages.map((p) => p.docId)).size;
+  // Page tools work on the selected pages, or on all of them when none is selected.
+  const target = selected.size ? pages.filter((p) => selected.has(p.id)) : pages;
+  const scope = selected.size
+    ? tn('dialog.scope.selected', target.length)
+    : tn('dialog.scope.all', target.length);
+  const sizeOf = (p: PageRef) => {
+    const s = docs[p.docId]?.sizes[p.srcIndex];
+    return s ? { width: s[0], height: s[1] } : null;
+  };
+
+  /** Inserts an empty page after the last selected page, or at the end, in the shape of its neighbour. */
+  async function insertBlank() {
+    if (!tab) return;
+    const at = selected.size ? Math.max(...pages.map((p, i) => (selected.has(p.id) ? i : -1))) + 1 : pages.length;
+    const reference = pages[Math.max(0, at - 1)];
+    const ref = reference ? sizeOf(reference) : null;
+    const [w, h] = ref ? [ref.width, ref.height] : PAPERS.a4;
+    try {
+      const file = new File([blankPdf(w, h) as BlobPart], `${t('blank.name')}.pdf`, { type: 'application/pdf' });
+      const opened = await openPdf(file);
+      opened.doc.generated = true;
+      setDocs((d) => ({ ...d, [opened.doc.id]: opened.doc }));
+      dispatch({ type: 'add', pages: opened.pages, at });
+    } catch (err) {
+      console.error(err);
+      setError(t('blank.failed'));
+    }
+  }
+
   const previewIndex = pages.findIndex((p) => p.id === previewId);
   const openFilePicker = () => fileInput.current?.click();
 
@@ -189,13 +228,16 @@ export default function App() {
     }
   }
 
-  const base = () => outputBase(pages.map((p) => docs[p.docId].name), t('file.merged'));
+  const base = () => outputBase(ownPages.map((p) => docs[p.docId].name), t('file.merged'));
 
   const save = () =>
     run(t('busy.saving'), async (job) => {
-      download(await buildPdf(pages, docs, { ...job, flatten }), `${base()}.pdf`);
+      download(await buildPdf(pages, docs, { ...job, flatten, date }), `${base()}.pdf`);
     });
 
+  // Today's date for header and footer texts that contain {date}.
+  const [today] = useState(() => new Date());
+  const date = today.toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-GB');
   // "Flatten form" applies to everything that is saved, in every tab.
   const [flatten, setFlatten] = useState(false);
   const [printPages, setPrintPages] = useState<PrintPage[] | null>(null);
@@ -221,14 +263,13 @@ export default function App() {
             skipped++;
             continue;
           }
-          const turned = turnedSize({ width: size[0], height: size[1] }, p.rotation);
-          const url = await renderPage(docs[p.docId], p.srcIndex, {
+          const turned = finalSize(p, { width: size[0], height: size[1] });
+          const url = await renderFinal(p, docs, {
             width: Math.round((turned.width * PRINT_DPI) / 72),
-            rotation: p.rotation,
             dpr: 1,
-            hidden: p.removed,
-            annots: p.annots,
-            fields: p.fields,
+            number: i + 1,
+            total: pages.length,
+            date,
           });
           made.push({ url, landscape: turned.width > turned.height });
           job.onProgress?.((i + 1) / pages.length);
@@ -249,7 +290,7 @@ export default function App() {
     run(t('busy.splitting'), async (job) => {
       if (plan === 'selection') {
         const chosen = pages.filter((p) => selected.has(p.id));
-        download(await buildPdf(chosen, docs, { ...job, flatten }), `${base()}-${t('file.selection')}.pdf`);
+        download(await buildPdf(chosen, docs, { ...job, flatten, date }), `${base()}-${t('file.selection')}.pdf`);
         return;
       }
       const files = [];
@@ -259,6 +300,7 @@ export default function App() {
           bytes: await buildPdf(group.map((k) => pages[k]), docs, {
             signal: job.signal,
             flatten,
+            date,
             onProgress: (f) => job.onProgress?.((i + f) / plan.length),
           }),
         });
@@ -316,6 +358,10 @@ export default function App() {
     { id: 'redo', label: t('cmd.redo'), keywords: t('cmd.redo.kw'), shortcut: 'Strg+Y', enabled: state.undone.length > 0, run: () => dispatch({ type: 'redo' }) },
     { id: 'read', label: t('cmd.read'), keywords: t('cmd.read.kw'), enabled: !!tab && view !== 'read', run: () => dispatchWs({ type: 'view', view: 'read' }) },
     { id: 'pages', label: t('cmd.pages'), keywords: t('cmd.pages.kw'), enabled: !!tab && view !== 'pages', run: () => dispatchWs({ type: 'view', view: 'pages' }) },
+    { id: 'blank', label: t('cmd.blank'), keywords: t('cmd.blank.kw'), enabled: !!tab, run: insertBlank },
+    { id: 'mark', label: t('cmd.mark'), keywords: t('cmd.mark.kw'), enabled: hasPages, run: () => setPageDialog('mark') },
+    { id: 'crop', label: t('cmd.crop'), keywords: t('cmd.crop.kw'), enabled: hasPages, run: () => setPageDialog('crop') },
+    { id: 'resize', label: t('cmd.resize'), keywords: t('cmd.resize.kw'), enabled: hasPages, run: () => setPageDialog('resize') },
     { id: 'selectAll', label: t('cmd.selectAll'), enabled: hasPages && selected.size < pages.length, run: () => dispatch({ type: 'selectAll' }) },
     { id: 'selectNone', label: t('cmd.selectNone'), enabled: selected.size > 0, run: () => dispatch({ type: 'clearSelection' }) },
     { id: 'rotateRight', label: t('cmd.rotateRight'), keywords: t('cmd.rotate.kw'), enabled: selected.size > 0, run: () => dispatch({ type: 'rotate', ids: selectedInOrder(state), delta: 90 }) },
@@ -466,6 +512,14 @@ export default function App() {
                 onFill={(id, fields) => dispatch({ type: 'fill', id, fields })}
               />
             ) : tab ? (
+              <>
+              <PageTools
+                disabled={!hasPages}
+                onBlank={insertBlank}
+                onMark={() => setPageDialog('mark')}
+                onCrop={() => setPageDialog('crop')}
+                onResize={() => setPageDialog('resize')}
+              />
               <PageGrid
                 key={tab.id}
                 state={state}
@@ -476,6 +530,7 @@ export default function App() {
                 dispatch={dispatch}
                 onPreview={setPreviewId}
               />
+              </>
             ) : (
               <DropZone onOpen={openFilePicker} />
             )}
@@ -503,7 +558,8 @@ export default function App() {
 
       {previewPage && (
         <Preview
-          doc={docs[previewPage.docId]}
+          docs={docs}
+          date={date}
           page={previewPage}
           number={previewIndex + 1}
           total={pages.length}
@@ -523,6 +579,53 @@ export default function App() {
 
       {mergeOpen && (
         <MergeDialog tabs={ws.tabs} onMerge={mergeTabs} onClose={() => setMergeOpen(false)} />
+      )}
+
+      {pageDialog === 'mark' && (
+        <MarkDialog
+          scope={scope}
+          target={target}
+          onAdd={(mark) => dispatch({ type: 'mark', ids: target.map((p) => p.id), mark })}
+          onRemove={(markId) => dispatch({ type: 'unmark', ids: target.map((p) => p.id), markId })}
+          onClose={() => setPageDialog(null)}
+        />
+      )}
+      {pageDialog === 'crop' && (
+        <CropDialog
+          scope={scope}
+          hasCrop={target.some((p) => p.crop)}
+          onCrop={(m) => {
+            const crops: Record<string, [number, number, number, number] | null> = {};
+            for (const p of target) {
+              const size = sizeOf(p);
+              if (!size) continue;
+              crops[p.id] = cropFromMargins(size, p.rotation, { top: m.top * MM, right: m.right * MM, bottom: m.bottom * MM, left: m.left * MM });
+            }
+            dispatch({ type: 'crop', crops });
+          }}
+          onReset={() => dispatch({ type: 'crop', crops: Object.fromEntries(target.map((p) => [p.id, null])) })}
+          onClose={() => setPageDialog(null)}
+        />
+      )}
+      {pageDialog === 'resize' && (
+        <ResizeDialog
+          scope={scope}
+          hasSize={target.some((p) => p.size)}
+          onResize={(paper, orientation) => {
+            const sizes: Record<string, [number, number] | null> = {};
+            for (const p of target) {
+              const own = sizeOf(p);
+              if (!own) continue;
+              const shown = p.rotation % 180 === 0 ? own : { width: own.height, height: own.width };
+              const [w, h] = paperSize(paper, orientation, shown);
+              // Stored in the page's own orientation; the extra turn is applied on top.
+              sizes[p.id] = p.rotation % 180 === 0 ? [w, h] : [h, w];
+            }
+            dispatch({ type: 'resize', sizes });
+          }}
+          onReset={() => dispatch({ type: 'resize', sizes: Object.fromEntries(target.map((p) => [p.id, null])) })}
+          onClose={() => setPageDialog(null)}
+        />
       )}
 
       {splitOpen && (

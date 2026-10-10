@@ -4,6 +4,9 @@ import { loadMupdf } from './mupdf';
 import { AppError } from '../core/errors';
 import { addComment, deleteComments } from './annotate';
 import { applyFields } from './forms';
+import { embedText, textWidth } from './embed';
+import { applyPageBox } from './pagebox';
+import { markPosition, markText } from '../core/marks';
 import type { PageRef } from '../core/types';
 
 /** What building needs from an opened file. */
@@ -16,6 +19,8 @@ export interface BuildSource {
   byteLength?: number;
   /** Password the file was opened with, if it asks for one. */
   password?: string;
+  /** Made by PDFgoat (an empty page), not a file of the user: it does not count as a file of its own. */
+  generated?: boolean;
 }
 
 // The engine and fflate are only needed when saving, so they load on demand.
@@ -78,13 +83,22 @@ const title = (src: BuildSource) => (src.name ?? 'PDF').replace(/\.pdf$/i, '');
 // carry the protection of the first one, so every result is saved without protection.
 const SAVE_OPTIONS = 'garbage=deduplicate,compress,encrypt=none';
 
+export interface BuildOptions {
+  /** Write form fields into the pages, so they can no longer be changed. */
+  flatten?: boolean;
+  /** Today's date as written into marks that contain {date}. */
+  date?: string;
+  /** For building a single page of a longer document: its number and the number of pages, for page numbers. */
+  numbering?: { number: number; total: number };
+}
+
 /** Builds a new PDF from a list of pages (possibly from several documents). */
 export async function buildPdf(
   pages: PageRef[],
   sources: Record<string, BuildSource>,
   /** Called after each file has been prepared and once more when the result is assembled. */
   onProgress?: (done: number, total: number) => void,
-  options: { flatten?: boolean } = {},
+  options: BuildOptions = {},
 ): Promise<Uint8Array> {
   if (!pages.length) throw new AppError('noPages');
   const engine = await loadEngine();
@@ -132,9 +146,11 @@ export async function buildPdf(
 
     // Everything is collected in the copy of the first file, so its bookmarks, form and
     // document properties stay as they are.
-    const [base, ...rest] = list;
+    // A made-up empty page is never the base, so the bookmarks of a real file are kept.
+    const base = list.find((p) => !p.source.generated) ?? list[0];
+    const rest = list.filter((p) => p !== base);
     const out = base.doc!;
-    const files = new Set(list.map((p) => p.docId)).size;
+    const files = new Set(list.filter((p) => !p.source.generated).map((p) => p.docId)).size;
     // When files with bookmarks are merged, each file gets an entry with its name on top.
     const named = files > 1 && list.some((p) => p.primary && p.doc!.loadOutline()?.length);
     if (named) engine.nestOutline(out, title(base.source));
@@ -143,7 +159,7 @@ export async function buildPdf(
     for (const part of rest) {
       const first = out.countPages();
       part.refs.forEach((p, i) => position.set(p.id, first + i));
-      engine.appendDocument(out, part.doc!, named && part.primary ? title(part.source) : undefined);
+      engine.appendDocument(out, part.doc!, named && part.primary && !part.source.generated ? title(part.source) : undefined);
     }
     engine.keepPages(out, pages.map((p) => position.get(p.id)!));
 
@@ -153,6 +169,32 @@ export async function buildPdf(
       if (!p.annots?.length) return;
       const page = out.loadPage(i);
       for (const a of p.annots) addComment(engine, page, a);
+    });
+
+    // Cropping and resizing, then the texts that belong at fixed places of the finished page.
+    const date = options.date ?? new Date().toISOString().slice(0, 10);
+    pages.forEach((p, i) => {
+      if (p.crop || p.size) applyPageBox(engine, out, out.loadPage(i), p.crop, p.size);
+      if (!p.marks?.length) return;
+      const page = out.loadPage(i);
+      const [x0, y0, x1, y1] = page.getBounds();
+      const area = { width: x1 - x0, height: y1 - y0 };
+      for (const mark of p.marks) {
+        const text = markText(mark, (options.numbering?.number ?? 1) + i, options.numbering?.total ?? pages.length, date);
+        const width = textWidth(engine, out, text, mark.size);
+        const { x, y } = markPosition(mark.place, area, width, mark.size);
+        if (mark.place === 'center' && mark.diagonal) {
+          // Turned 45° around the middle of the page.
+          const rad = Math.PI / 4;
+          const cx = area.width / 2;
+          const cy = area.height / 2;
+          const px = cx - (Math.cos(rad) * width) / 2 - Math.sin(rad) * mark.size * 0.6;
+          const py = cy + (Math.sin(rad) * width) / 2 - Math.cos(rad) * mark.size * 0.6;
+          embedText(engine, out, page, { text, x: px, y: py, width: 0, size: mark.size, color: mark.color, opacity: mark.opacity, angle: 45 });
+        } else {
+          embedText(engine, out, page, { text, x, y, width: 0, size: mark.size, color: mark.color, opacity: mark.opacity });
+        }
+      }
     });
 
     pages.forEach((p, i) => {

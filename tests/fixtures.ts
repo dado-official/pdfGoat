@@ -1,4 +1,5 @@
 // Test PDFs built with pdf-lib. Every page gets a unique width, so it can be recognised in any output.
+import { crc32, deflateSync } from 'node:zlib';
 import { PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName, PDFRef, PDFString, StandardFonts, degrees } from 'pdf-lib';
 
 export interface FixturePage {
@@ -225,4 +226,47 @@ export async function formValues(bytes: Uint8Array) {
 
 export async function fieldCount(bytes: Uint8Array) {
   return (await PDFDocument.load(bytes)).getForm().getFields().length;
+}
+
+/** The text of every page, read by MuPDF (a second engine instance in Node, independent of the app). */
+export async function textOf(bytes: Uint8Array): Promise<string[]> {
+  const { PDFDocument: MuPdf } = await import('mupdf');
+  const doc = new MuPdf(bytes);
+  try {
+    return Array.from({ length: doc.countPages() }, (_, i) => doc.loadPage(i).toStructuredText('').asText());
+  } finally {
+    doc.destroy();
+  }
+}
+
+/** Number of pictures in the resources of the first page. */
+export async function imageCount(bytes: Uint8Array): Promise<number> {
+  const doc = await PDFDocument.load(bytes);
+  const resources = doc.getPages()[0].node.Resources();
+  const xobjects = resources?.lookupMaybe(PDFName.of('XObject'), PDFDict);
+  return xobjects ? xobjects.keys().length : 0;
+}
+
+/** A small solid red PNG (8 x 8), for pictures to insert. Written by hand with correct checksums. */
+export function tinyPng(): Buffer {
+  const chunk = (type: string, data: Buffer) => {
+    const body = Buffer.concat([Buffer.from(type, 'ascii'), data]);
+    const out = Buffer.alloc(body.length + 8);
+    out.writeUInt32BE(data.length, 0);
+    body.copy(out, 4);
+    out.writeUInt32BE(crc32(body), body.length + 4);
+    return out;
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(8, 0);
+  header.writeUInt32BE(8, 4);
+  header.set([8, 2, 0, 0, 0], 8); // 8 bit, RGB
+  const row = Buffer.concat([Buffer.from([0]), Buffer.from(Array.from({ length: 8 }, () => [220, 40, 40]).flat())]);
+  const raw = Buffer.concat(Array.from({ length: 8 }, () => row));
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', header),
+    chunk('IDAT', deflateSync(raw)),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
 }
