@@ -21,6 +21,7 @@ import { useFileDrop, useShortcuts } from './ui/useWindowEvents';
 import DropZone from './features/open/DropZone';
 import PasswordDialog from './features/open/PasswordDialog';
 import Reader from './features/read/Reader';
+import CompareDialog from './features/compare/CompareDialog';
 import CompressDialog from './features/export/CompressDialog';
 import { LEVELS, type CompressLevel } from './core/compress';
 import ExportDialog, { type ExportFormat } from './features/export/ExportDialog';
@@ -79,6 +80,7 @@ export default function App() {
   const [protectOpen, setProtectOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [compressOpen, setCompressOpen] = useState(false);
+  const [compareOpen, setCompareOpen] = useState(false);
   // Protection and cleaning apply to everything that is saved, in every tab.
   const [protect, setProtect] = useState<Protection | null>(null);
   const [clean, setClean] = useState<Cleaning>(noCleaning);
@@ -420,6 +422,7 @@ export default function App() {
     { id: 'crop', label: t('cmd.crop'), keywords: t('cmd.crop.kw'), enabled: hasPages, run: () => setPageDialog('crop') },
     { id: 'resize', label: t('cmd.resize'), keywords: t('cmd.resize.kw'), enabled: hasPages, run: () => setPageDialog('resize') },
     { id: 'protect', label: t('cmd.protect'), keywords: t('cmd.protect.kw'), enabled: !!tab, run: () => setProtectOpen(true) },
+    { id: 'compare', label: t('cmd.compare'), keywords: t('cmd.compare.kw'), enabled: ws.tabs.length > 1, run: () => setCompareOpen(true) },
     { id: 'compress', label: t('cmd.compress'), keywords: t('cmd.compress.kw'), enabled: hasPages, run: () => setCompressOpen(true) },
     { id: 'export', label: t('cmd.export'), keywords: t('cmd.export.kw'), enabled: hasPages, run: () => setExportOpen(true) },
     { id: 'selectAll', label: t('cmd.selectAll'), enabled: hasPages && selected.size < pages.length, run: () => dispatch({ type: 'selectAll' }) },
@@ -586,6 +589,8 @@ export default function App() {
                 protectActive={protectActive}
                 onExport={() => setExportOpen(true)}
                 onCompress={() => setCompressOpen(true)}
+                canCompare={ws.tabs.length > 1}
+                onCompare={() => setCompareOpen(true)}
               />
               <PageGrid
                 key={tab.id}
@@ -648,6 +653,7 @@ export default function App() {
         <MergeDialog tabs={ws.tabs} onMerge={mergeTabs} onClose={() => setMergeOpen(false)} />
       )}
 
+      {compareOpen && <CompareDialog tabs={ws.tabs} docs={docs} onClose={() => setCompareOpen(false)} />}
       {compressOpen && (
         <CompressDialog
           scope={scope}

@@ -918,3 +918,16 @@ textarea.form-field { padding-top: 2px; resize: none; line-height: 1.2; }
 .report dd { margin: 0; overflow-wrap: anywhere; }
 .mark-list ul { margin: 4px 0 0; padding: 0; list-style: none; }
 .mark-list li { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; font-size: 14px; }
+
+/* Comparing documents */
+.page-dialog.wide { width: min(980px, calc(100vw - 32px)); }
+.compare-main { display: flex; gap: 14px; align-items: flex-start; }
+.compare-pages { flex: none; width: 190px; max-height: 340px; margin: 0; padding: 0; overflow: auto; list-style: none; border: 1px solid var(--edge); border-radius: var(--radius); }
+.compare-pages button { display: flex; justify-content: space-between; gap: 8px; width: 100%; padding: 7px 10px; border: 0; border-bottom: 1px solid var(--edge); background: transparent; font-size: 14px; text-align: left; cursor: pointer; }
+.compare-pages button[aria-pressed='true'] { background: var(--raised); font-weight: 600; }
+.compare-view { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.compare-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.compare-text { margin: 0; padding: 10px; max-height: 320px; overflow: auto; border: 1px solid var(--edge); border-radius: var(--radius); font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.compare-text del { background: rgb(229 72 77 / 0.15); color: var(--danger); text-decoration: line-through; }
+.compare-text ins { background: rgb(51 71 201 / 0.14); color: var(--signal-deep); text-decoration: none; font-weight: 600; }
+.compare-visual { max-width: 100%; max-height: 360px; object-fit: contain; border: 1px solid var(--edge); border-radius: var(--radius); filter: invert(1); background: #000; }

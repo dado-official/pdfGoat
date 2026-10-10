@@ -1186,6 +1186,32 @@ test.describe('pictures and export', () => {
     expect((await md).suggestedFilename()).toBe('inhalt.md');
   });
 
+  test('compares two documents and shows the words that differ', async ({ app: page }) => {
+    await page.getByTestId('file-input').setInputFiles([
+      pdfFile('alt.pdf', await makePdf([{ width: 595, label: 'Vertrag' }, { width: 595, label: 'gleich' }])),
+      pdfFile('neu.pdf', await makePdf([{ width: 595, label: 'Vortrag' }, { width: 595, label: 'gleich' }])),
+    ]);
+    await expect(page.getByRole('tab')).toHaveCount(2);
+    await page.getByRole('button', { name: 'Vergleichen' }).first().click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Vergleichen' }).click();
+    await expect(page.getByRole('status')).toHaveText('Unterschiede auf 1 von 2 Seiten.');
+    await expect(page.locator('.compare-text del')).toHaveText('Vertrag');
+    await expect(page.locator('.compare-text ins')).toHaveText('Vortrag');
+    await page.getByLabel('Bildvergleich (dunkel ist anders)').check();
+    await expect(page.locator('canvas.compare-visual')).toBeVisible();
+    await page.getByLabel('Zweites Dokument').selectOption({ label: 'alt.pdf' });
+    await expect(page.getByText('Wähle zwei verschiedene Dokumente.')).toBeVisible();
+  });
+
+  test('says when two documents have the same text', async ({ app: page }) => {
+    const same = await makePdf([{ width: 595, label: 'gleich' }]);
+    await page.getByTestId('file-input').setInputFiles([pdfFile('eins.pdf', same), pdfFile('zwei.pdf', same)]);
+    await expect(page.getByRole('tab')).toHaveCount(2);
+    await page.getByRole('button', { name: 'Vergleichen' }).first().click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Vergleichen' }).click();
+    await expect(page.getByRole('status')).toHaveText('Kein Unterschied im Text.');
+  });
+
   test('compresses a file with a large picture and shows the sizes before and after', async ({ app: page }) => {
     const photo = await makePhotoPdf();
     await page.getByTestId('file-input').setInputFiles(pdfFile('foto.pdf', photo));

@@ -462,4 +462,23 @@ export const en: Record<MessageKey, string> = {
   'compress.nothing': 'The file is already small ({size}); there is nothing to gain.',
   'compress.failed': 'Compressing failed.',
   'file.compressed': 'compressed',
+
+  // Compare
+  'pagetools.compare': 'Compare',
+  'cmd.compare': 'Compare two documents',
+  'cmd.compare.kw': 'differences diff match',
+  'compare.title': 'Compare documents',
+  'compare.scope': 'Two open documents are compared page by page, as their tabs show them now.',
+  'compare.apply': 'Compare',
+  'compare.working': 'Comparing …',
+  'compare.first': 'First document',
+  'compare.second': 'Second document',
+  'compare.same': 'Choose two different documents.',
+  'compare.needTwo': 'Open a second document first.',
+  'compare.identical': 'No difference in the text.',
+  'compare.summary': 'Differences on {changed} of {total} pages.',
+  'compare.page': 'Page {number}',
+  'compare.missing': 'missing in one document',
+  'compare.visual': 'Picture comparison (dark means different)',
+  'compare.visualFailed': 'The picture comparison failed.',
 };

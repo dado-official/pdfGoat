@@ -465,6 +465,25 @@ export const de = {
   'compress.nothing': 'Die Datei ist schon klein ({size}), hier gibt es nichts zu gewinnen.',
   'compress.failed': 'Das Komprimieren ist fehlgeschlagen.',
   'file.compressed': 'komprimiert',
+
+  // Compare
+  'pagetools.compare': 'Vergleichen',
+  'cmd.compare': 'Zwei Dokumente vergleichen',
+  'cmd.compare.kw': 'unterschiede diff abgleichen',
+  'compare.title': 'Dokumente vergleichen',
+  'compare.scope': 'Verglichen werden zwei geöffnete Dokumente Seite für Seite, so wie ihre Reiter sie jetzt zeigen.',
+  'compare.apply': 'Vergleichen',
+  'compare.working': 'Wird verglichen …',
+  'compare.first': 'Erstes Dokument',
+  'compare.second': 'Zweites Dokument',
+  'compare.same': 'Wähle zwei verschiedene Dokumente.',
+  'compare.needTwo': 'Öffne zuerst ein zweites Dokument.',
+  'compare.identical': 'Kein Unterschied im Text.',
+  'compare.summary': 'Unterschiede auf {changed} von {total} Seiten.',
+  'compare.page': 'Seite {number}',
+  'compare.missing': 'fehlt in einem Dokument',
+  'compare.visual': 'Bildvergleich (dunkel ist anders)',
+  'compare.visualFailed': 'Der Bildvergleich ist fehlgeschlagen.',
 } as const;
 
 export type MessageKey = keyof typeof de;
