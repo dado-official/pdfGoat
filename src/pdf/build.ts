@@ -2,6 +2,7 @@
 import type { PDFDocument } from 'mupdf';
 import { loadMupdf } from './mupdf';
 import { AppError } from '../core/errors';
+import { addComment, deleteComments } from './annotate';
 import type { PageRef } from '../core/types';
 
 /** What building needs from an opened file. */
@@ -117,6 +118,8 @@ export async function buildPdf(
       // Name the page instead of failing obscurely; the user can delete it and save the rest.
       const lost = part.refs.find((p) => !hasPage(doc, p.srcIndex));
       if (lost) throw new AppError('pageMissing', { name: part.source.name ?? '', number: lost.srcIndex + 1 });
+      // Comments the user deleted are removed from the working copy before the pages move on.
+      for (const p of part.refs) if (p.removed?.length) deleteComments(doc.loadPage(p.srcIndex), p.removed);
       engine.keepPages(doc, part.refs.map((p) => p.srcIndex));
       onProgress?.(list.indexOf(part) + 1, total);
     }
@@ -137,6 +140,14 @@ export async function buildPdf(
       engine.appendDocument(out, part.doc!, named && part.primary ? title(part.source) : undefined);
     }
     engine.keepPages(out, pages.map((p) => position.get(p.id)!));
+
+    // Comments are written before the extra rotation, because their positions are given in the
+    // page's own space.
+    pages.forEach((p, i) => {
+      if (!p.annots?.length) return;
+      const page = out.loadPage(i);
+      for (const a of p.annots) addComment(engine, page, a);
+    });
 
     pages.forEach((p, i) => {
       if (!p.rotation) return;

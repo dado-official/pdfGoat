@@ -14,14 +14,20 @@ import {
 } from '../../core/readerLayout';
 import { placeOutline, type FileOutline } from '../../core/outline';
 import { boxOnScreen, type Box } from '../../core/textLayer';
+import { boxBetween, isMarkup, mergeLineBoxes, screenToPage, unionOf, COMMENT_COLORS, DEFAULT_COLOR, type Annot } from '../../core/annotations';
 import type { PageRef } from '../../core/types';
 import type { ReaderMemory } from '../../state/workspace';
 import { useI18n } from '../../i18n/context';
-import { getOutline, type SourceDoc } from '../../pdf/view';
+import { getComments, getOutline, type SourceDoc } from '../../pdf/view';
+import CommentBar from '../comment/CommentBar';
+import CommentPanel, { type FileComments } from '../comment/CommentPanel';
+import { useClearSelection, type Tool } from '../comment/tools';
+import type { StampName } from '../comment/stamps';
 import ReadPage from './ReadPage';
 import Sidebar, { type SidebarTab } from './Sidebar';
 import { MAX_MATCHES, useSearch } from './useSearch';
 
+const SHAPE_COLOR = COMMENT_COLORS[1];
 const NO_HITS: { boxes: Box[]; active: boolean }[] = [];
 
 interface Props {
@@ -33,10 +39,12 @@ interface Props {
   /** Where the reader was left last time, and where to report the place when it closes. */
   memory: ReaderMemory | null;
   onMemory: (memory: ReaderMemory) => void;
+  /** Replaces the comments of one page; `removed` lists the file's own comments that were deleted. */
+  onAnnotate: (pageId: string, annots: Annot[], removed: number[]) => void;
 }
 
 /** Continuous view of all pages with zoom and keyboard paging. */
-export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb, memory, onMemory }: Props) {
+export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb, memory, onMemory, onAnnotate }: Props) {
   const { t } = useI18n();
   const scroller = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState<Size>({ width: 800, height: 600 });
@@ -49,6 +57,46 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
   const [sidebar, setSidebar] = useState<SidebarTab | null>(null);
   const asked = useRef(new Set<string>());
   const [outlines, setOutlines] = useState<Record<string, FileOutline['nodes']>>({});
+  const [tool, setTool] = useState<Tool>(null);
+  const [color, setColor] = useState<string>(DEFAULT_COLOR);
+  // Until a colour is picked, shapes and drawings are red and marks and notes yellow.
+  const picked = useRef(false);
+  const [stampName, setStampName] = useState<StampName>('approved');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [panel, setPanel] = useState(false);
+  const [fileComments, setFileComments] = useState<FileComments>({});
+  const askedComments = useRef(new Set<string>());
+  const stampText = t(`stamp.${stampName}`);
+  const stamp = useMemo(() => ({ name: stampName, text: stampText }), [stampName, stampText]);
+  useClearSelection(setSelectedId);
+
+  // The file's own comments are read when the list is opened.
+  useEffect(() => {
+    if (!panel) return;
+    for (const p of pages) {
+      const key = `${p.docId}:${p.srcIndex}`;
+      if (askedComments.current.has(key) || !docs[p.docId]) continue;
+      askedComments.current.add(key);
+      getComments(docs[p.docId], p.srcIndex)
+        .then((list) => list.length && setFileComments((c) => ({ ...c, [key]: list })))
+        .catch(() => undefined);
+    }
+  }, [panel, pages, docs]);
+
+  const endTool = useCallback(() => setTool(null), []);
+  const annotate = useCallback(
+    (page: PageRef, annots: Annot[]) => onAnnotate(page.id, annots, page.removed ?? []),
+    [onAnnotate],
+  );
+  const commentCount = useMemo(
+    () =>
+      pages.reduce((n, p) => {
+        const gone = new Set(p.removed ?? []);
+        const own = (fileComments[`${p.docId}:${p.srcIndex}`] ?? []).filter((c) => !gone.has(c.index)).length;
+        return n + own + (p.annots?.length ?? 0);
+      }, 0),
+    [pages, fileComments],
+  );
 
   // Where each page of each file stands now; the first place when a page is used several times.
   const positions = useMemo(() => {
@@ -220,10 +268,53 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
     else if (mod && e.key === '0') setZoom({ kind: 'width' });
     else if (!mod && (e.key === 'PageDown' || e.key === 'ArrowRight')) goTo(current + 1);
     else if (!mod && (e.key === 'PageUp' || e.key === 'ArrowLeft')) goTo(current - 1);
+    else if (e.key === 'Escape' && (tool || selectedId)) {
+      setTool(null);
+      setSelectedId(null);
+    } else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) removeSelected();
     else if (e.key === 'Home') goTo(0);
     else if (e.key === 'End') goTo(pages.length - 1);
     else return;
     e.preventDefault();
+  }
+
+  /** Turns the selected text into a highlight, underline or strikeout, on every page it touches. */
+  function markSelection() {
+    if (!tool || !isMarkup(tool)) return;
+    const sel = window.getSelection();
+    const root = scroller.current;
+    if (!sel || sel.isCollapsed || !sel.rangeCount || !root) return;
+    const rects = Array.from({ length: sel.rangeCount }, (_, i) => [...sel.getRangeAt(i).getClientRects()]).flat();
+    root.querySelectorAll<HTMLElement>('.read-page').forEach((el) => {
+      const index = Number(el.dataset.page) - 1;
+      const page = pages[index];
+      if (!page) return;
+      const r = el.getBoundingClientRect();
+      const boxes = rects
+        .filter((c) => c.right > r.left && c.left < r.right && c.bottom > r.top && c.top < r.bottom)
+        .map((c) =>
+          boxBetween(
+            screenToPage(c.left - r.left, c.top - r.top, baseSizes[index], page.rotation, scale),
+            screenToPage(c.right - r.left, c.bottom - r.top, baseSizes[index], page.rotation, scale),
+          ),
+        );
+      const quads = mergeLineBoxes(boxes);
+      if (!quads.length) return;
+      const made: Annot = { id: crypto.randomUUID(), kind: tool, color, contents: '', box: unionOf(quads), quads, created: Date.now() };
+      annotate(page, [...(page.annots ?? []), made]);
+      setSelectedId(made.id);
+    });
+    sel.removeAllRanges();
+  }
+
+  function removeSelected() {
+    for (const p of pages) {
+      if (p.annots?.some((a) => a.id === selectedId)) {
+        annotate(p, p.annots.filter((a) => a.id !== selectedId));
+        setSelectedId(null);
+        return;
+      }
+    }
   }
 
   function commitTyped() {
@@ -290,6 +381,9 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
           <button onClick={() => stepMatch(-1)} disabled={!matches.length} aria-label={t('read.prevMatch')} title="Shift+Enter">↑</button>
           <button onClick={() => stepMatch(1)} disabled={!matches.length} aria-label={t('read.nextMatch')} title="Enter">↓</button>
         </div>
+        <button className="panel-toggle" aria-pressed={panel} onClick={() => setPanel(!panel)}>
+          {t('comment.panel', { count: commentCount })}
+        </button>
         <div className="zoom">
           <button onClick={() => zoomBy(-1)} disabled={percent <= ZOOM_STEPS[0]} aria-label={t('read.zoomOut')} title="Strg+−">−</button>
           <select
@@ -313,6 +407,20 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
         </div>
       </div>
 
+      <CommentBar
+        tool={tool}
+        onTool={(next) => {
+          setTool(next);
+          if (next && !picked.current) setColor(next === 'highlight' || next === 'note' ? DEFAULT_COLOR : SHAPE_COLOR);
+        }}
+        color={color}
+        onColor={(c) => {
+          picked.current = true;
+          setColor(c);
+        }}
+        stamp={stampName}
+        onStamp={setStampName}
+      />
       <div className="reader-body">
       {sidebar && (
         <Sidebar
@@ -335,6 +443,7 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
         aria-label={t('read.label')}
         onScroll={onScroll}
         onKeyDown={onKeyDown}
+        onMouseUp={markSelection}
       >
         <div className="reader-pages" style={{ height: layout.total }}>
           {pages.map((p, i) => (
@@ -351,10 +460,28 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
               hits={hitsByPage.get(i) ?? NO_HITS}
               linkTarget={linkTarget}
               onGo={go}
+              tool={tool}
+              color={color}
+              stamp={stamp}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+              onAnnots={annotate}
+              onPlaced={endTool}
             />
           ))}
         </div>
       </div>
+      {panel && (
+        <CommentPanel
+          pages={pages}
+          fileComments={fileComments}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+          onGo={go}
+          onChange={(index, annots) => annotate(pages[index], annots)}
+          onRemoveFile={(index, n) => onAnnotate(pages[index].id, pages[index].annots ?? [], [...(pages[index].removed ?? []), n])}
+        />
+      )}
       </div>
     </div>
   );

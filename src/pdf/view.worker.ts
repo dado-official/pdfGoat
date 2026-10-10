@@ -3,10 +3,13 @@
 import type { PDFDocument } from 'mupdf';
 import { loadMupdf } from './mupdf';
 import { AppError, type ErrorCode, type ErrorParams } from '../core/errors';
+import type { Annot } from '../core/annotations';
+import { addComment, listComments } from './annotate';
 
 export type ViewRequest =
   | { id: number; type: 'open'; docId: string; name: string; bytes: Uint8Array; password?: string }
-  | { id: number; type: 'render'; docId: string; pageIndex: number; width: number; rotation: number }
+  | { id: number; type: 'render'; docId: string; pageIndex: number; width: number; rotation: number; hidden?: number[]; annots?: Annot[] }
+  | { id: number; type: 'comments'; docId: string; pageIndex: number }
   | { id: number; type: 'text'; docId: string; pageIndex: number }
   | { id: number; type: 'search'; docId: string; pageIndex: number; needle: string }
   | { id: number; type: 'outline'; docId: string }
@@ -18,6 +21,17 @@ export interface OutlineNode {
   title: string;
   page: number | null;
   children: OutlineNode[];
+}
+
+/** A comment that is already in the file. `index` is its position among the page's comments. */
+export interface FileComment {
+  index: number;
+  type: string;
+  contents: string;
+  author: string;
+  box: Box;
+  /** Milliseconds since 1970, or 0 when the file has no date. */
+  date: number;
 }
 
 /** A clickable area on a page: a jump to another page of the file, or an address. */
@@ -106,7 +120,7 @@ function pageSize(doc: PDFDocument, index: number): readonly [number, number] | 
 }
 
 /** Renders a page to a PNG that is `width` pixels wide, turned clockwise by `rotation` on top of its own. */
-function render(engine: Engine, { docId, pageIndex, width, rotation }: Extract<ViewRequest, { type: 'render' }>): Uint8Array {
+function render(engine: Engine, { docId, pageIndex, width, rotation, hidden, annots }: Extract<ViewRequest, { type: 'render' }>): Uint8Array {
   const doc = docs.get(docId);
   if (!doc) throw new AppError('renderFailed');
   if (!hasPage(doc, pageIndex)) throw new AppError('renderFailed');
@@ -116,12 +130,53 @@ function render(engine: Engine, { docId, pageIndex, width, rotation }: Extract<V
     const turned = rotation % 180 !== 0;
     const scale = width / (turned ? y1 - y0 : x1 - x0);
     const matrix = engine.Matrix.concat(engine.Matrix.scale(scale, scale), engine.Matrix.rotate(rotation));
-    const pixmap = page.toPixmap(matrix, engine.ColorSpace.DeviceRGB, false, true);
+    // Deleted comments are hidden for this drawing only, and new ones are added for it and taken
+    // away again, so the opened file itself stays as it was read.
+    const HIDDEN = 2;
+    const existing = hidden?.length ? listComments(page) : [];
+    const restore = (hidden ?? []).flatMap((i) => (existing[i] ? [[existing[i], existing[i].getFlags()] as const] : []));
+    for (const [annot, flags] of restore) annot.setFlags(flags | HIDDEN);
+    const added = annots?.length ? listNew(engine, page, annots) : [];
     try {
-      return pixmap.asPNG().slice();
+      const pixmap = page.toPixmap(matrix, engine.ColorSpace.DeviceRGB, false, true);
+      try {
+        return pixmap.asPNG().slice();
+      } finally {
+        pixmap.destroy();
+      }
     } finally {
-      pixmap.destroy();
+      for (const [annot, flags] of restore) annot.setFlags(flags);
+      for (const annot of added) page.deleteAnnotation(annot);
     }
+  } finally {
+    page.destroy();
+  }
+}
+
+/** Adds comments to a page and returns the annotations that were created. */
+function listNew(engine: Engine, page: ReturnType<PDFDocument['loadPage']>, annots: Annot[]) {
+  const before = new Set(page.getAnnotations().map((a) => a.getObject().asIndirect()));
+  for (const a of annots) addComment(engine, page, a);
+  return page.getAnnotations().filter((a) => !before.has(a.getObject().asIndirect()));
+}
+
+function fileComments({ docId, pageIndex }: Extract<ViewRequest, { type: 'comments' }>): FileComment[] {
+  const doc = docs.get(docId);
+  if (!doc || !hasPage(doc, pageIndex)) return [];
+  const page = doc.loadPage(pageIndex);
+  try {
+    return listComments(page).map((a, index) => {
+      const [x0, y0, x1, y1] = a.getBounds();
+      let date = 0;
+      try {
+        date = a.getModificationDate().getTime() || 0;
+      } catch {
+        // A date that cannot be read is left out.
+      }
+      return { index, type: a.getType(), contents: a.getContents(), author: a.getAuthor(), box: [x0, y0, x1, y1] as Box, date };
+    });
+  } catch {
+    return [];
   } finally {
     page.destroy();
   }
@@ -237,6 +292,8 @@ self.onmessage = async ({ data }: MessageEvent<ViewRequest>) => {
         const png = render(engine, data);
         return post({ id: data.id, ok: true, result: png }, [png.buffer]);
       }
+      case 'comments':
+        return post({ id: data.id, ok: true, result: fileComments(data) });
       case 'text':
         return post({ id: data.id, ok: true, result: pageText(data) });
       case 'search':

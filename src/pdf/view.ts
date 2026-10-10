@@ -2,10 +2,12 @@
 // in a worker next to the engine's WebAssembly, so the page stays responsive.
 import { AppError } from '../core/errors';
 import { checkFileSize, MAX_FILE_BYTES, toMegabytes } from '../core/limits';
+import type { Annot } from '../core/annotations';
 import type { PageRef } from '../core/types';
 import type { BuildSource } from './build';
 import type {
   Box,
+  FileComment,
   OpenResult,
   OutlineNode,
   PageLink,
@@ -14,7 +16,7 @@ import type {
   ViewResponse,
 } from './view.worker';
 
-export type { Box, OutlineNode, PageLink, TextLine };
+export type { Box, FileComment, OutlineNode, PageLink, TextLine };
 
 export interface SourceDoc extends BuildSource {
   id: string;
@@ -121,7 +123,7 @@ export async function openPdf(file: File, password?: string): Promise<OpenedPdf>
 export async function renderPage(
   doc: SourceDoc,
   srcIndex: number,
-  { width = 200, rotation = 0, dpr = Math.min(window.devicePixelRatio || 1, 2) } = {},
+  { width = 200, rotation = 0, dpr = Math.min(window.devicePixelRatio || 1, 2), hidden, annots }: { width?: number; rotation?: number; dpr?: number; hidden?: number[]; annots?: Annot[] } = {},
 ): Promise<string> {
   try {
     const png = await call<Uint8Array>({
@@ -130,6 +132,8 @@ export async function renderPage(
       pageIndex: srcIndex,
       width: Math.round(width * dpr),
       rotation: ((rotation % 360) + 360) % 360,
+      hidden,
+      annots,
     });
     return URL.createObjectURL(new Blob([png as BlobPart], { type: 'image/png' }));
   } catch {
@@ -153,3 +157,7 @@ export const getOutline = (doc: SourceDoc) => call<OutlineNode[]>({ type: 'outli
 /** The links on one page. */
 export const getLinks = (doc: SourceDoc, srcIndex: number) =>
   call<PageLink[]>({ type: 'links', docId: doc.id, pageIndex: srcIndex });
+
+/** The comments that a file already has on one page. */
+export const getComments = (doc: SourceDoc, srcIndex: number) =>
+  call<FileComment[]>({ type: 'comments', docId: doc.id, pageIndex: srcIndex });

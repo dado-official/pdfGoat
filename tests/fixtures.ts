@@ -1,5 +1,5 @@
 // Test PDFs built with pdf-lib. Every page gets a unique width, so it can be recognised in any output.
-import { PDFArray, PDFDocument, PDFHexString, PDFName, PDFRef, StandardFonts, degrees } from 'pdf-lib';
+import { PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName, PDFRef, PDFString, StandardFonts, degrees } from 'pdf-lib';
 
 export interface FixturePage {
   width: number;
@@ -156,4 +156,40 @@ export async function makeProtectedPdf(password = 'geheim'): Promise<Uint8Array>
   } finally {
     doc.destroy();
   }
+}
+
+/** A one-page PDF that already carries a comment (a note by "Erika"), like a file from another program. */
+export async function makeCommentedPdf(text = 'Alter Kommentar'): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.HelveticaBold);
+  const page = doc.addPage([595, 842]);
+  page.drawText('Hallo', { x: 60, y: 600, size: 48, font });
+  const note = doc.context.register(
+    doc.context.obj({
+      Type: 'Annot',
+      Subtype: 'Text',
+      Rect: [300, 700, 320, 720],
+      Contents: PDFHexString.fromText(text),
+      T: PDFHexString.fromText('Erika'),
+      Name: 'Comment',
+      F: 4,
+    }),
+  );
+  page.node.set(PDFName.of('Annots'), doc.context.obj([note]));
+  return doc.save();
+}
+
+/** Subtype and text of every comment on every page (the pop-up windows that belong to notes are left out). */
+export async function annotationsOf(bytes: Uint8Array): Promise<{ type: string; contents: string }[][]> {
+  const doc = await PDFDocument.load(bytes);
+  return doc.getPages().map((p) => {
+    const list = p.node.lookupMaybe(PDFName.of('Annots'), PDFArray);
+    return (list?.asArray() ?? [])
+      .map((ref) => {
+        const dict = doc.context.lookup(ref, PDFDict);
+        const contents = dict.lookupMaybe(PDFName.of('Contents'), PDFString, PDFHexString);
+        return { type: String(dict.get(PDFName.of('Subtype'))).slice(1), contents: contents?.decodeText() ?? '' };
+      })
+      .filter((a) => a.type !== 'Popup');
+  });
 }

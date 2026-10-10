@@ -193,6 +193,8 @@ Ab hier fühlt sich PDFgoat wie ein Editor an und nicht wie ein Seitensortierer.
 
 ### M4 – Kommentieren
 
+Stand: umgesetzt (10.10.2026). Kommentare liegen als Daten an der Seite (`PageRef.annots`, Positionen in Seitenpunkten der unrotierten Seite) und ändern sich über die Änderung `annotate`, daher gehen Rückgängig, Wiederholen, Verschieben und Kopieren in neue Reiter von selbst. Beim Speichern schreibt `pdf/annotate.ts` sie als echte PDF-Annotationen (vor der zusätzlichen Drehung der Seite). Gelöschte Kommentare der Datei werden über ihre Position in `listComments` aus der Arbeitskopie entfernt und beim Zeichnen ausgeblendet. Drucken und Vorschau backen die neuen Kommentare über den View-Worker ins Bild. Bekannte Grenzen: vorhandene Kommentare lassen sich löschen, aber nicht bearbeiten oder verschieben; neue Kommentare lassen sich verschieben, aber nicht in der Größe ändern; Text im Textfeld ist auf die Zeichen der Standardschrift Helvetica beschränkt; die Miniaturen im Seitenraster zeigen keine Kommentare; die Stempel sind fest (fünf Texte, in der Sprache der Oberfläche beim Anlegen).
+
 - Markieren, unterstreichen, durchstreichen auf markiertem Text
 - Notiz, Textfeld, Freihand, Rechteck, Ellipse, Linie, Pfeil, Stempel
 - Kommentarliste rechts, bearbeiten und löschen, vorhandene Kommentare aus anderen Programmen anzeigen

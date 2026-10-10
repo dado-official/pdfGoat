@@ -6,6 +6,10 @@ import type { PageRef } from '../../core/types';
 import { useI18n } from '../../i18n/context';
 import { getLinks, getText, renderPage, type PageLink, type SourceDoc, type TextLine } from '../../pdf/view';
 import { useNearViewport } from '../../ui/useNearViewport';
+import AnnotLayer from '../comment/AnnotLayer';
+import type { Tool } from '../comment/tools';
+import type { Annot } from '../../core/annotations';
+import type { StampName } from '../comment/stamps';
 
 interface Props {
   page: PageRef;
@@ -24,7 +28,17 @@ interface Props {
   /** Position in the page list of a page of this page's file, or null when it was deleted. */
   linkTarget: (docId: string, srcIndex: number) => number | null;
   onGo: (position: number) => void;
+  /** Comment tool in use, and what it needs. */
+  tool: Tool;
+  color: string;
+  stamp: { name: StampName; text: string };
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+  onAnnots: (page: PageRef, annots: Annot[]) => void;
+  onPlaced: () => void;
 }
+
+const NO_ANNOTS: Annot[] = [];
 
 let measuring: CanvasRenderingContext2D | null = null;
 
@@ -40,7 +54,7 @@ function naturalWidth(text: string, size: number): number {
 const MAX_RENDER_WIDTH = 2400;
 
 /** One page of the reading view. It has its final size from the start and draws itself while it is near the screen. */
-function ReadPage({ page, doc, number, width, height, damaged, size, scale, hits, linkTarget, onGo }: Props) {
+function ReadPage({ page, doc, number, width, height, damaged, size, scale, hits, linkTarget, onGo, tool, color, stamp, selectedId, onSelect, onAnnots, onPlaced }: Props) {
   const { t } = useI18n();
   const root = useRef<HTMLDivElement>(null);
   const near = useNearViewport(root);
@@ -50,6 +64,10 @@ function ReadPage({ page, doc, number, width, height, damaged, size, scale, hits
   const [links, setLinks] = useState<PageLink[]>([]);
   const current = useRef<string | null>(null);
   const renderWidth = Math.min(width, MAX_RENDER_WIDTH);
+  // Comments of the file that were deleted are left out of the picture. A string, so that the
+  // picture is only drawn again when the set really changes.
+  const removedKey = (page.removed ?? []).join(',');
+  const removed = useMemo(() => (removedKey ? removedKey.split(',').map(Number) : undefined), [removedKey]);
 
   const show = (url: string | null) => {
     if (current.current) URL.revokeObjectURL(current.current);
@@ -64,7 +82,7 @@ function ReadPage({ page, doc, number, width, height, damaged, size, scale, hits
     let cancelled = false;
     // The delay saves drawing at every step while the zoom is being changed.
     const timer = setTimeout(() => {
-      renderPage(doc, page.srcIndex, { width: renderWidth, rotation: page.rotation })
+      renderPage(doc, page.srcIndex, { width: renderWidth, rotation: page.rotation, hidden: removed })
         .then((url) => {
           if (cancelled) URL.revokeObjectURL(url);
           else show(url);
@@ -80,7 +98,7 @@ function ReadPage({ page, doc, number, width, height, damaged, size, scale, hits
     };
     // `show` only touches refs and state setters.
     // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [near, damaged, doc, page.srcIndex, page.rotation, renderWidth]);
+  }, [near, damaged, doc, page.srcIndex, page.rotation, renderWidth, removed]);
 
   // The text is only held while the page is near, like its image.
   useEffect(() => {
@@ -172,6 +190,21 @@ function ReadPage({ page, doc, number, width, height, damaged, size, scale, hits
             );
           })}
         </div>
+      )}
+      {!problem && (
+        <AnnotLayer
+          size={size}
+          rotation={page.rotation}
+          scale={scale}
+          annots={page.annots ?? NO_ANNOTS}
+          tool={tool}
+          color={color}
+          stamp={stamp}
+          selectedId={selectedId}
+          onSelect={onSelect}
+          onChange={(annots) => onAnnots(page, annots)}
+          onPlaced={onPlaced}
+        />
       )}
       {problem && (
         <span className="thumb-failed">

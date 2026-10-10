@@ -224,6 +224,8 @@ export default function App() {
             width: Math.round((turned.width * PRINT_DPI) / 72),
             rotation: p.rotation,
             dpr: 1,
+            hidden: p.removed,
+            annots: p.annots,
           });
           made.push({ url, landscape: turned.width > turned.height });
           job.onProgress?.((i + 1) / pages.length);
@@ -454,6 +456,7 @@ export default function App() {
                 onNeedThumb={requestThumb}
                 memory={tab.memory}
                 onMemory={(memory) => dispatchWs({ type: 'memory', id: tab.id, memory })}
+                onAnnotate={(id, annots, removed) => dispatch({ type: 'annotate', id, annots, removed })}
               />
             ) : tab ? (
               <PageGrid

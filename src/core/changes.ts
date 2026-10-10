@@ -1,6 +1,7 @@
 // The change list: everything the user did to the document, as commands with data.
 // The page list is derived from it, undo removes the last entry, and later milestones add
 // commands for comments, form values and redactions that the engine applies when saving.
+import type { Annot } from './annotations';
 import type { PageRef } from './types';
 
 export type Change =
@@ -9,7 +10,9 @@ export type Change =
   | { type: 'remove'; ids: string[] }
   | { type: 'move'; id: string; step: number }
   | { type: 'moveTo'; ids: string[]; targetId: string; side: 'before' | 'after' }
-  | { type: 'reverse' };
+  | { type: 'reverse' }
+  /** Replaces the comments of one page: new ones, and which of the file's own were deleted. */
+  | { type: 'annotate'; id: string; annots: Annot[]; removed: number[] };
 
 export const normalizeRotation = (deg: number) => ((deg % 360) + 360) % 360;
 
@@ -57,6 +60,17 @@ export function applyChange(pages: PageRef[], change: Change): PageRef[] {
 
     case 'reverse':
       return pages.length < 2 ? pages : [...pages].reverse();
+
+    case 'annotate': {
+      const i = pages.findIndex((p) => p.id === change.id);
+      if (i < 0) return pages;
+      const old = pages[i];
+      const same = (a: readonly unknown[] | undefined, b: readonly unknown[]) => (a ?? []).length === b.length && b.every((x, k) => a![k] === x);
+      if (same(old.annots, change.annots) && same(old.removed, change.removed)) return pages;
+      const next = [...pages];
+      next[i] = { ...old, annots: change.annots, removed: change.removed };
+      return next;
+    }
   }
 }
 

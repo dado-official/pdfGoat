@@ -204,3 +204,24 @@ describe('redo', () => {
 it('reset returns to the empty state', () => {
   expect(editorReducer(withPages('a'), { type: 'reset' })).toBe(initialState);
 });
+
+describe('annotate', () => {
+  const note = { id: 'n1', kind: 'note' as const, color: '#f5c400', contents: 'x', box: [0, 0, 20, 20] as [number, number, number, number], created: 1 };
+
+  it('can be undone and redone like any change', () => {
+    let s = withPages('a', 'b');
+    s = editorReducer(s, { type: 'annotate', id: 'a', annots: [note], removed: [] });
+    expect(s.pages[0].annots).toEqual([note]);
+    s = editorReducer(s, { type: 'undo' });
+    expect(s.pages[0].annots).toBeUndefined();
+    s = editorReducer(s, { type: 'redo' });
+    expect(s.pages[0].annots).toEqual([note]);
+  });
+
+  it('moves with its page', () => {
+    let s = withPages('a', 'b');
+    s = editorReducer(s, { type: 'annotate', id: 'a', annots: [note], removed: [] });
+    s = editorReducer(s, { type: 'reverse' });
+    expect(s.pages[1].annots).toEqual([note]);
+  });
+});
