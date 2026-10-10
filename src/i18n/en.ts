@@ -14,6 +14,7 @@ export const en: Record<MessageKey, string> = {
   'busy.opening': 'Opening {name} …',
   'busy.saving': 'Creating PDF …',
   'busy.splitting': 'Splitting …',
+  'busy.cancel': 'Cancel',
   'confirm.closeAll': 'Close all pages? Unsaved changes will be lost.',
 
   'status.pages.one': '{count} page',

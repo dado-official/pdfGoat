@@ -317,12 +317,12 @@ Erledigt aus M2:
 - **Speichern, Zusammenfügen und Aufteilen laufen über MuPDF** (`src/pdf/build.ts`, `src/pdf/merge.ts`). Lesezeichen, Links, Kommentare, Formularfelder und Dokumenteigenschaften bleiben erhalten. Gelöschte Seiten sind wirklich aus der Datei entfernt, auch wenn die Datei „beim Öffnen Seite N zeigen“ auf eine gelöschte Seite gesetzt hatte.
 - Zusammenfügen mehrerer Dateien: Lesezeichen jeder Datei stehen unter einem Eintrag mit dem Dateinamen (nur wenn mindestens eine Datei Lesezeichen hat), gleichnamige Formularfelder werden umbenannt (`name`, `name_2`).
 - **Verschlüsselte PDFs öffnen mit Passwortabfrage** (`PasswordDialog`, wiederholt bei falschem Passwort, „Überspringen“ öffnet nichts). Dateien mit nur Besitzer-Passwort öffnen direkt. Gespeichert wird immer ohne Schutz, ein Hinweis beim Öffnen sagt das. Grund: MuPDF behält den Schutz beim Speichern, beim Zusammenfügen würde aber nur der Schutz der ersten Datei gelten. Passwort setzen kommt mit M7.
+- **Engine läuft im Web Worker** (`src/pdf/engine.ts` auf der Seite, `engine.worker.ts` im Worker, `build.ts` bleibt reine Logik und ist in Node testbar). Fortschritt wird angezeigt, „Abbrechen“ beendet den Worker. Nur Speichern und Aufteilen laufen bisher darüber, Rendern und Lesen folgen mit M3.
 - pdf-lib ist aus der App entfernt und dient nur noch in den Tests als zweiter, unabhängiger Leser.
 
 Offen aus M2:
 
-- Engine in einen Web Worker verlegen. Derzeit läuft sie beim Speichern im Hauptfenster, wie pdf-lib vorher.
-- Schnittstelle `pdf/engine.ts` und Änderungsliste im Dokumentmodell.
+- Änderungsliste im Dokumentmodell (`changes`) und Undo darüber, statt der Seitenlisten-Schritte von heute.
 - Prüfung mit echten großen PDFs im Browser.
 - Bekannte Lücke beim Zusammenfügen: Pop-up-Fenster von Kommentaren und Sprungziele in Schaltflächen der hinzugefügten Datei werden nicht übernommen, die Kommentare selbst schon.
 

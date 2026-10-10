@@ -13,6 +13,7 @@ export const de = {
   'busy.opening': 'Öffne {name} …',
   'busy.saving': 'Erstelle PDF …',
   'busy.splitting': 'Teile auf …',
+  'busy.cancel': 'Abbrechen',
   'confirm.closeAll': 'Alle Seiten schließen? Nicht gespeicherte Änderungen gehen verloren.',
 
   'status.pages.one': '{count} Seite',

@@ -23,7 +23,7 @@ type Engine = Awaited<ReturnType<typeof loadEngine>>;
 // A WeakMap frees them together with the source when the file is closed.
 const loaded = new WeakMap<BuildSource, Promise<Uint8Array>>();
 
-function bytesOf(src: BuildSource): Promise<Uint8Array> {
+export function bytesOf(src: BuildSource): Promise<Uint8Array> {
   let bytes = loaded.get(src);
   if (!bytes) {
     bytes = read(src);
@@ -76,7 +76,12 @@ const title = (src: BuildSource) => (src.name ?? 'PDF').replace(/\.pdf$/i, '');
 const SAVE_OPTIONS = 'garbage=deduplicate,compress,encrypt=none';
 
 /** Builds a new PDF from a list of pages (possibly from several documents). */
-export async function buildPdf(pages: PageRef[], sources: Record<string, BuildSource>): Promise<Uint8Array> {
+export async function buildPdf(
+  pages: PageRef[],
+  sources: Record<string, BuildSource>,
+  /** Called after each file has been prepared and once more when the result is assembled. */
+  onProgress?: (done: number, total: number) => void,
+): Promise<Uint8Array> {
   if (!pages.length) throw new AppError('noPages');
   const engine = await loadEngine();
 
@@ -104,6 +109,7 @@ export async function buildPdf(pages: PageRef[], sources: Record<string, BuildSo
   }
 
   const list = [...parts.values()];
+  const total = list.length + 1;
   try {
     for (const part of list) {
       const doc = (part.doc = open(engine, await bytesOf(part.source), part.source));
@@ -111,6 +117,7 @@ export async function buildPdf(pages: PageRef[], sources: Record<string, BuildSo
       const lost = part.refs.find((p) => !hasPage(doc, p.srcIndex));
       if (lost) throw new AppError('pageMissing', { name: part.source.name ?? '', number: lost.srcIndex + 1 });
       engine.keepPages(doc, part.refs.map((p) => p.srcIndex));
+      onProgress?.(list.indexOf(part) + 1, total);
     }
 
     // Everything is collected in the copy of the first file, so its bookmarks, form and
@@ -139,7 +146,9 @@ export async function buildPdf(pages: PageRef[], sources: Record<string, BuildSo
 
     out.setMetaData('info:Producer', 'PDFgoat');
     // The result lives in the engine's memory, so it is copied out before that is freed.
-    return out.saveToBuffer(SAVE_OPTIONS).asUint8Array().slice();
+    const result = out.saveToBuffer(SAVE_OPTIONS).asUint8Array().slice();
+    onProgress?.(total, total);
+    return result;
   } finally {
     for (const part of list) part.doc?.destroy();
   }

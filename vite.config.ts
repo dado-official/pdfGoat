@@ -56,4 +56,6 @@ export default defineConfig({
   base: './',
   // PDF.js alone is ~500 kB; that is expected for this app.
   build: { chunkSizeWarningLimit: 1500 },
+  // MuPDF uses top-level await, which needs module workers.
+  worker: { format: 'es' },
 })

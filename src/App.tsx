@@ -3,7 +3,8 @@ import { AppError } from './core/errors';
 import { outputBase, partName } from './core/ranges';
 import { toMegabytes } from './core/limits';
 import { editorReducer, initialState, selectedInOrder } from './state/editor';
-import { buildPdf, zip } from './pdf/build';
+import { zip } from './pdf/build';
+import { buildPdf, CancelledError, type JobOptions } from './pdf/engine';
 import { closePdf, openPdf, type OpenedPdf, type SourceDoc } from './pdf/lazy';
 import { useI18n } from './i18n/context';
 import { download } from './ui/download';
@@ -27,6 +28,9 @@ export default function App() {
   const { thumbs, failed: failedThumbs, request: requestThumb, clear: clearThumbs } = useThumbnails(docs);
 
   const [busy, setBusy] = useState('');
+  // Set while a job in the engine can be cancelled, with how far it is (0 to 1).
+  const [progress, setProgress] = useState<number | null>(null);
+  const job = useRef<AbortController | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [previewId, setPreviewId] = useState<string | null>(null);
@@ -103,38 +107,49 @@ export default function App() {
     setNotice('');
   }
 
-  async function run(label: string, task: () => Promise<void>) {
+  async function run(label: string, task: (job: JobOptions) => Promise<void>) {
+    const controller = new AbortController();
+    job.current = controller;
     setBusy(label);
+    setProgress(0);
     setError('');
     try {
-      await task();
+      await task({ signal: controller.signal, onProgress: setProgress });
     } catch (err) {
-      console.error(err);
-      setError(errorText(err));
+      // Cancelling is the user's choice, not a failure.
+      if (!(err instanceof CancelledError)) {
+        console.error(err);
+        setError(errorText(err));
+      }
     } finally {
+      job.current = null;
       setBusy('');
+      setProgress(null);
     }
   }
 
   const base = () => outputBase(pages.map((p) => docs[p.docId].name), t('file.merged'));
 
   const save = () =>
-    run(t('busy.saving'), async () => {
-      download(await buildPdf(pages, docs), `${base()}.pdf`);
+    run(t('busy.saving'), async (job) => {
+      download(await buildPdf(pages, docs, job), `${base()}.pdf`);
     });
 
   const split = (plan: SplitPlan) =>
-    run(t('busy.splitting'), async () => {
+    run(t('busy.splitting'), async (job) => {
       if (plan === 'selection') {
         const chosen = pages.filter((p) => selected.has(p.id));
-        download(await buildPdf(chosen, docs), `${base()}-${t('file.selection')}.pdf`);
+        download(await buildPdf(chosen, docs, job), `${base()}-${t('file.selection')}.pdf`);
         return;
       }
       const files = [];
       for (const [i, group] of plan.entries()) {
         files.push({
           name: partName(base(), i, group, t('file.pageAbbr')),
-          bytes: await buildPdf(group.map((k) => pages[k]), docs),
+          bytes: await buildPdf(group.map((k) => pages[k]), docs, {
+            signal: job.signal,
+            onProgress: (f) => job.onProgress?.((i + f) / plan.length),
+          }),
         });
       }
       if (files.length === 1) download(files[0].bytes, files[0].name);
@@ -286,7 +301,15 @@ export default function App() {
       </div>
 
       {fileDragging && <div className="file-overlay" aria-hidden="true">{t('drop.overlay')}</div>}
-      {busy && <div className="busy" role="status">{busy}</div>}
+      {busy && (
+        <div className="busy" role="status">
+          {busy}
+          {progress !== null && progress > 0 && ` ${Math.round(progress * 100)} %`}
+          {progress !== null && (
+            <button onClick={() => job.current?.abort()}>{t('busy.cancel')}</button>
+          )}
+        </div>
+      )}
 
       {previewPage && (
         <Preview

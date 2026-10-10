@@ -265,6 +265,16 @@ h1 {
   font-weight: 600;
   font-size: 14px;
 }
+.busy button {
+  margin-left: 12px;
+  padding: 2px 8px;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
 
 footer {
   max-width: 78ch;
