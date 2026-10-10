@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Annot } from '../../core/annotations';
+import { replacementFont, scaleBox, type Edit } from '../../core/edits';
+import { imagePicture } from './pictures';
 import { safeExternalUrl } from '../../core/outline';
 import { unsupportedChars } from '../../core/winansi';
 import type { PageRef } from '../../core/types';
@@ -17,12 +19,14 @@ interface Props {
   onSelect: (id: string | null) => void;
   onGo: (pageIndex: number) => void;
   onChange: (pageIndex: number, annots: Annot[]) => void;
+  onEdits: (pageIndex: number, edits: Edit[]) => void;
   onRemoveFile: (pageIndex: number, index: number) => void;
 }
 
 type Entry =
   | { key: string; page: number; top: number; mine: Annot }
-  | { key: string; page: number; top: number; file: FileComment };
+  | { key: string; page: number; top: number; file: FileComment }
+  | { key: string; page: number; top: number; edit: Edit };
 
 const FILE_KINDS: Record<string, MessageKey> = {
   Highlight: 'comment.kind.highlight',
@@ -43,7 +47,7 @@ const kindLabel = (a: Annot): MessageKey =>
   : (`comment.kind.${a.tag ?? a.kind}` as MessageKey);
 
 /** The comment list on the right: the file's own comments and the new ones, page by page. */
-export default function CommentPanel({ pages, fileComments, selectedId, onSelect, onGo, onChange, onRemoveFile }: Props) {
+export default function CommentPanel({ pages, fileComments, selectedId, onSelect, onGo, onChange, onEdits, onRemoveFile }: Props) {
   const { t } = useI18n();
   const entries = useMemo(() => {
     const list: Entry[] = [];
@@ -53,6 +57,7 @@ export default function CommentPanel({ pages, fileComments, selectedId, onSelect
         if (!gone.has(fc.index)) list.push({ key: `f${p.id}:${fc.index}`, page, top: fc.box[1], file: fc });
       }
       for (const a of p.annots ?? []) list.push({ key: a.id, page, top: a.box[1], mine: a });
+      for (const edit of p.edits ?? []) list.push({ key: edit.id, page, top: edit.box[1], edit });
     });
     return list.sort((a, b) => a.page - b.page || a.top - b.top);
   }, [pages, fileComments]);
@@ -64,6 +69,24 @@ export default function CommentPanel({ pages, fileComments, selectedId, onSelect
       ) : (
         <ul>
           {entries.map((e) => {
+            if ('edit' in e) {
+              return (
+                <EditItem
+                  key={e.key}
+                  edit={e.edit}
+                  selected={e.edit.id === selectedId}
+                  onSelect={() => {
+                    onSelect(e.edit.id);
+                    onGo(e.page);
+                  }}
+                  onChange={(next) => onEdits(e.page, (pages[e.page].edits ?? []).map((x) => (x.id === next.id ? next : x)))}
+                  onReset={() => {
+                    onEdits(e.page, (pages[e.page].edits ?? []).filter((x) => x.id !== e.edit.id));
+                    onSelect(null);
+                  }}
+                />
+              );
+            }
             if ('file' in e) {
               const fc = e.file;
               return (
@@ -160,6 +183,99 @@ function CommentEditor({ value, onCommit, mode = 'comment' }: { value: string; o
       />
       {missing.length > 0 && <p className="sign-problem" role="status">{t('comment.missingChars', { chars: missing.join(' ') })}</p>}
       {bad && <p className="sign-problem" role="status">{t('comment.badAddress')}</p>}
+    </>
+  );
+}
+
+/** One change to existing content: the new text, or what to do with the picture. */
+function EditItem({ edit, selected, onSelect, onChange, onReset }: { edit: Edit; selected: boolean; onSelect: () => void; onChange: (e: Edit) => void; onReset: () => void }) {
+  const { t } = useI18n();
+  const replace = useRef<HTMLInputElement>(null);
+  return (
+    <li className={selected ? 'comment-item selected' : 'comment-item'} data-comment={`edit-${edit.kind}`}>
+      <button className="comment-head" onClick={onSelect}>
+        <span>{t(edit.kind === 'text' ? 'comment.kind.editText' : 'comment.kind.editImage')}</span>
+      </button>
+      {edit.kind === 'text' ? (
+        selected ? (
+          <>
+            <p className="comment-author">{t('edit.was', { text: edit.original })}</p>
+            <EditText key={edit.id} value={edit.text} onCommit={(text) => onChange({ ...edit, text })} />
+            <p className="comment-author">{t('edit.font', { font: replacementFont(edit.font) })}</p>
+          </>
+        ) : (
+          <p className="comment-text">{edit.text || <em>{t('edit.removed')}</em>}</p>
+        )
+      ) : (
+        <>
+          <p className="comment-text">{edit.target ? t('edit.pictureKept') : <em>{t('edit.pictureRemoved')}</em>}</p>
+          {selected && (
+            <div className="edit-actions">
+              {edit.target ? (
+                <>
+                  <button onClick={() => onChange({ ...edit, target: null })}>{t('edit.remove')}</button>
+                  <button onClick={() => onChange({ ...edit, target: scaleBox(edit.target!, 1.1) })}>{t('edit.bigger')}</button>
+                  <button onClick={() => onChange({ ...edit, target: scaleBox(edit.target!, 1 / 1.1) })}>{t('edit.smaller')}</button>
+                  <button onClick={() => replace.current?.click()}>{t('edit.replace')}</button>
+                </>
+              ) : (
+                <button onClick={() => onChange({ ...edit, target: edit.box })}>{t('edit.restore')}</button>
+              )}
+              <input
+                ref={replace}
+                type="file"
+                hidden
+                accept="image/png,image/jpeg,image/webp"
+                aria-label={t('edit.replace')}
+                data-testid="replace-input"
+                onChange={async (ev) => {
+                  const f = ev.target.files?.[0];
+                  ev.target.value = '';
+                  if (!f || !edit.target) return;
+                  try {
+                    const pic = await imagePicture(f, 1600);
+                    // The new picture keeps its shape and fits inside the old one's place.
+                    const [x0, y0, x1, y1] = edit.target;
+                    const w = x1 - x0;
+                    const h = y1 - y0;
+                    const fitW = Math.min(w, h * pic.ratio);
+                    const fitH = fitW / pic.ratio;
+                    const cx = (x0 + x1) / 2;
+                    const cy = (y0 + y1) / 2;
+                    onChange({ ...edit, png: pic.bytes, target: [cx - fitW / 2, cy - fitH / 2, cx + fitW / 2, cy + fitH / 2] });
+                  } catch {
+                    // The old picture stays.
+                  }
+                }}
+              />
+            </div>
+          )}
+        </>
+      )}
+      <button className="comment-delete" onClick={onReset}>{t('edit.reset')}</button>
+    </li>
+  );
+}
+
+function EditText({ value, onCommit }: { value: string; onCommit: (text: string) => void }) {
+  const { t } = useI18n();
+  const [draft, setDraft] = useState(value);
+  const latest = useRef({ draft, value, onCommit });
+  useEffect(() => {
+    latest.current = { draft, value, onCommit };
+  });
+  useEffect(
+    () => () => {
+      const { draft: d, value: v, onCommit: commit } = latest.current;
+      if (d !== v) commit(d);
+    },
+    [],
+  );
+  const missing = unsupportedChars(draft);
+  return (
+    <>
+      <input className="comment-edit" aria-label={t('edit.newText')} autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={() => draft !== value && onCommit(draft)} onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()} />
+      {missing.length > 0 && <p className="sign-problem" role="status">{t('comment.missingChars', { chars: missing.join(' ') })}</p>}
     </>
   );
 }

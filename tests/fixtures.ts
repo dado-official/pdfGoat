@@ -270,3 +270,15 @@ export function tinyPng(): Buffer {
     chunk('IEND', Buffer.alloc(0)),
   ]);
 }
+
+/** A page with two lines of text and a red picture, for tests that change existing content. */
+export async function makeContentPdf(): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const page = doc.addPage([595, 842]);
+  page.drawText('Erste Zeile', { x: 72, y: 760, size: 14, font });
+  page.drawText('Zweite Zeile', { x: 72, y: 742, size: 14, font });
+  const picture = await doc.embedPng(tinyPng());
+  page.drawImage(picture, { x: 100, y: 500, width: 120, height: 80 });
+  return doc.save();
+}

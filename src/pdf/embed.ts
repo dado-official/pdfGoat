@@ -6,22 +6,24 @@ import { rgb } from '../core/annotations';
 import { encodeWinAnsi, winAnsiByte } from '../core/winansi';
 import type { Mupdf } from './mupdf';
 
-const FONT = 'PGfont';
-
 interface Embedded {
   font: Font;
   obj: PDFObject;
+  /** Name in the page's resources. */
+  resource: string;
 }
-const fonts = new WeakMap<PDFDocument, Embedded>();
+const fonts = new WeakMap<PDFDocument, Map<string, Embedded>>();
 let counter = 0;
 
 /** The font used for inserted text: an embedded Helvetica-style font with western European characters. */
-function fontOf(engine: Mupdf, doc: PDFDocument): Embedded {
-  let found = fonts.get(doc);
+function fontOf(engine: Mupdf, doc: PDFDocument, name = 'Helvetica'): Embedded {
+  let byName = fonts.get(doc);
+  if (!byName) fonts.set(doc, (byName = new Map()));
+  let found = byName.get(name);
   if (!found) {
-    const font = new engine.Font('Helvetica');
-    found = { font, obj: doc.addSimpleFont(font, 'Latin') };
-    fonts.set(doc, found);
+    const font = new engine.Font(name);
+    found = { font, obj: doc.addSimpleFont(font, 'Latin'), resource: `PGfont${byName.size}` };
+    byName.set(name, found);
   }
   return found;
 }
@@ -79,6 +81,8 @@ export interface TextBlock {
   width: number;
   size: number;
   color: string;
+  /** One of the 14 standard fonts, e.g. "Times-Italic"; Helvetica when left out. */
+  font?: string;
   opacity?: number;
   /** Angle in degrees, counter-clockwise on the page, around the left end of the first baseline. */
   angle?: number;
@@ -108,8 +112,8 @@ export function wrapLines(measure: (s: string) => number, text: string, width: n
 const hex = (bytes: number[]) => bytes.map((b) => b.toString(16).padStart(2, '0')).join('');
 
 /** Width of a text in points at a font size. */
-export function textWidth(engine: Mupdf, doc: PDFDocument, text: string, size: number): number {
-  const { font } = fontOf(engine, doc);
+export function textWidth(engine: Mupdf, doc: PDFDocument, text: string, size: number, fontName?: string): number {
+  const { font } = fontOf(engine, doc, fontName);
   let w = 0;
   for (const char of text) {
     const byte = winAnsiByte(char);
@@ -120,9 +124,9 @@ export function textWidth(engine: Mupdf, doc: PDFDocument, text: string, size: n
 
 /** Writes text into the page. Returns the width of its widest line. */
 export function embedText(engine: Mupdf, doc: PDFDocument, page: PDFPage, t: TextBlock): number {
-  const { obj } = fontOf(engine, doc);
+  const { obj, resource } = fontOf(engine, doc, t.font);
   const res = resourcesOf(doc, page);
-  subDict(doc, res, 'Font').put(FONT, obj);
+  subDict(doc, res, 'Font').put(resource, obj);
   let gs = '';
   if (t.opacity !== undefined && t.opacity < 1) {
     const name = `PGgs${counter++}`;
@@ -132,7 +136,7 @@ export function embedText(engine: Mupdf, doc: PDFDocument, page: PDFPage, t: Tex
     subDict(doc, res, 'ExtGState').put(name, dict);
     gs = `/${name} gs\n`;
   }
-  const lines = wrapLines((s) => textWidth(engine, doc, s, t.size), t.text, t.width);
+  const lines = wrapLines((s) => textWidth(engine, doc, s, t.size, t.font), t.text, t.width);
   const [r, g, b] = rgb(t.color);
   const rad = ((t.angle ?? 0) * Math.PI) / 180;
   const cos = Math.cos(rad);
@@ -140,13 +144,13 @@ export function embedText(engine: Mupdf, doc: PDFDocument, page: PDFPage, t: Tex
   let widest = 0;
   let content = `q\n${gs}${fmt(r)} ${fmt(g)} ${fmt(b)} rg\n`;
   lines.forEach((line, i) => {
-    widest = Math.max(widest, textWidth(engine, doc, line, t.size));
+    widest = Math.max(widest, textWidth(engine, doc, line, t.size, t.font));
     // Local space: x along the line, y up. In page space y points down, hence the sign of sin and the flip.
     const dy = t.size * 0.92 + i * t.size * 1.2;
     const x = t.x + sin * dy;
     const y = t.y + cos * dy;
     const local: Matrix = [cos, -sin, -sin, -cos, x, y];
-    content += `q ${mx(toPdf(engine, page, local))} cm BT /${FONT} ${fmt(t.size)} Tf 0 0 Td <${hex(encodeWinAnsi(line).bytes)}> Tj ET Q\n`;
+    content += `q ${mx(toPdf(engine, page, local))} cm BT /${resource} ${fmt(t.size)} Tf 0 0 Td <${hex(encodeWinAnsi(line).bytes)}> Tj ET Q\n`;
   });
   appendContent(doc, page, `${content}Q\n`);
   return widest;

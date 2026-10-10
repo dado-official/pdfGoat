@@ -852,3 +852,17 @@ textarea.form-field { padding-top: 2px; resize: none; line-height: 1.2; }
 .page-mark { position: absolute; white-space: pre; font-family: Helvetica, Arial, sans-serif; line-height: 1.2; pointer-events: none; }
 .crop-mask { position: absolute; box-shadow: 0 0 0 9999px rgb(20 22 26 / 0.38); outline: 1px dashed var(--signal); pointer-events: none; }
 .picture-problem { margin: 0; padding: 6px 12px; background: var(--danger-soft); }
+
+/* Changing existing text and pictures */
+.edit-layer { pointer-events: none; }
+.edit-cover { position: absolute; background: #fff; pointer-events: none; }
+.edit-text { position: absolute; white-space: pre; pointer-events: auto; cursor: pointer; }
+.edit-text.selected { outline: 1.2px dashed var(--signal); outline-offset: 2px; }
+.edit-picture { position: absolute; pointer-events: auto; cursor: move; touch-action: none; }
+.edit-picture img { width: 100%; height: 100%; display: block; object-fit: fill; user-select: none; }
+.edit-picture.selected { outline: 1.2px dashed var(--signal); outline-offset: 2px; }
+.edit-pick { position: absolute; padding: 0; border: 1px dashed rgb(51 71 201 / 0.5); border-radius: 2px; background: rgb(51 71 201 / 0.06); pointer-events: auto; cursor: pointer; }
+.edit-pick:hover, .edit-pick:focus-visible { background: rgb(51 71 201 / 0.2); border-style: solid; }
+.edit-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.edit-actions button { padding: 3px 8px; border: 1px solid var(--edge); border-radius: var(--radius); background: var(--paper); font-size: 13px; cursor: pointer; }
+.edit-actions button:hover { border-color: var(--ink); }

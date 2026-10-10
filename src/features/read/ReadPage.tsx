@@ -5,8 +5,10 @@ import { lineStyle, overlayTransform, type Box } from '../../core/textLayer';
 import { markPosition, markText } from '../../core/marks';
 import type { PageRef } from '../../core/types';
 import { useI18n } from '../../i18n/context';
-import { getFields, getLinks, getText, renderPage, type FormField, type PageLink, type SourceDoc, type TextLine } from '../../pdf/view';
+import { getFields, getImagePng, getImages, getLinks, getText, renderPage, type FormField, type PageLink, type SourceDoc, type TextLine } from '../../pdf/view';
 import FormLayer from '../form/FormLayer';
+import EditLayer from '../edit/EditLayer';
+import { lineBox, type Edit } from '../../core/edits';
 import { useNearViewport } from '../../ui/useNearViewport';
 import AnnotLayer from '../comment/AnnotLayer';
 import { isDrawTool, type Picture, type Tool } from '../comment/tools';
@@ -43,9 +45,12 @@ interface Props {
   onAnnots: (page: PageRef, annots: Annot[]) => void;
   onPlaced: () => void;
   onFill: (page: PageRef, fields: Record<number, string>) => void;
+  onEdits: (page: PageRef, edits: Edit[]) => void;
 }
 
 const NO_ANNOTS: Annot[] = [];
+const NO_EDITS: Edit[] = [];
+const NO_LINES: TextLine[] = [];
 const NO_VALUES: Record<number, string> = {};
 
 let measuring: CanvasRenderingContext2D | null = null;
@@ -62,7 +67,7 @@ function naturalWidth(text: string, size: number): number {
 const MAX_RENDER_WIDTH = 2400;
 
 /** One page of the reading view. It has its final size from the start and draws itself while it is near the screen. */
-function ReadPage({ page, doc, number, total, width, height, damaged, size, scale, hits, linkTarget, onGo, tool, color, stamp, dateText, picture, selectedId, onSelect, onAnnots, onPlaced, onFill }: Props) {
+function ReadPage({ page, doc, number, total, width, height, damaged, size, scale, hits, linkTarget, onGo, tool, color, stamp, dateText, picture, selectedId, onSelect, onAnnots, onPlaced, onFill, onEdits }: Props) {
   const { t } = useI18n();
   const root = useRef<HTMLDivElement>(null);
   const near = useNearViewport(root);
@@ -71,6 +76,7 @@ function ReadPage({ page, doc, number, total, width, height, damaged, size, scal
   const [lines, setLines] = useState<TextLine[] | null>(null);
   const [links, setLinks] = useState<PageLink[]>([]);
   // Null until the form fields are known: the page is drawn without them when it has any.
+  const [imageBoxes, setImageBoxes] = useState<Box[]>([]);
   const [fieldList, setFieldList] = useState<FormField[] | null>(null);
   const current = useRef<string | null>(null);
   const renderWidth = Math.min(width, MAX_RENDER_WIDTH);
@@ -131,6 +137,54 @@ function ReadPage({ page, doc, number, total, width, height, damaged, size, scal
       cancelled = true;
     };
   }, [near, damaged, doc, page.srcIndex]);
+
+  // The pictures of the page are only looked for while the tool that picks one is in use.
+  const pickingImages = tool === 'editImage';
+  useEffect(() => {
+    if (!pickingImages || !near || damaged) {
+      setImageBoxes([]);
+      return;
+    }
+    let cancelled = false;
+    getImages(doc, page.srcIndex)
+      .then((b) => !cancelled && setImageBoxes(b))
+      .catch(() => !cancelled && setImageBoxes([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [pickingImages, near, damaged, doc, page.srcIndex]);
+
+  const edits = page.edits ?? NO_EDITS;
+  const pickLine = (line: TextLine) => {
+    const existing = edits.find((e) => e.kind === 'text' && e.original === line.text && Math.abs(e.baseline[0] - line.x) < 1 && Math.abs(e.baseline[1] - line.y) < 1);
+    if (existing) onSelect(existing.id);
+    else {
+      const made: Edit = {
+        id: crypto.randomUUID(),
+        kind: 'text',
+        original: line.text,
+        box: lineBox(line.x, line.y, line.length, line.size),
+        baseline: [line.x, line.y],
+        size: line.size,
+        color: line.color,
+        font: line.font,
+        text: line.text,
+      };
+      onEdits(page, [...edits, made]);
+      onSelect(made.id);
+    }
+    onPlaced();
+  };
+  const pickImage = (index: number, box: Box) => {
+    getImagePng(doc, page.srcIndex, index)
+      .then((png) => {
+        const made: Edit = { id: crypto.randomUUID(), kind: 'image', box, target: box, png };
+        onEdits(page, [...edits, made]);
+        onSelect(made.id);
+        onPlaced();
+      })
+      .catch((err) => console.warn('Picture could not be read', err));
+  };
 
   const shapes = useMemo(
     () => (lines ?? []).map((line) => ({ line, style: lineStyle(line, naturalWidth(line.text, line.size)) })),
@@ -227,6 +281,22 @@ function ReadPage({ page, doc, number, total, width, height, damaged, size, scal
             );
           })}
         </div>
+      )}
+      {!problem && (
+        <EditLayer
+          size={size}
+          rotation={page.rotation}
+          scale={scale}
+          edits={edits}
+          tool={tool === 'editText' || tool === 'editImage' ? tool : null}
+          lines={lines ?? NO_LINES}
+          images={imageBoxes}
+          selectedId={selectedId}
+          onSelect={onSelect}
+          onChange={(next) => onEdits(page, next)}
+          onPickLine={pickLine}
+          onPickImage={pickImage}
+        />
       )}
       {!problem && fieldList && (
         <FormLayer

@@ -14,6 +14,7 @@ import {
 } from '../../core/readerLayout';
 import { placeOutline, type FileOutline } from '../../core/outline';
 import { boxOnScreen, type Box } from '../../core/textLayer';
+import type { Edit } from '../../core/edits';
 import { boxBetween, isMarkup, mergeLineBoxes, screenToPage, unionOf, COMMENT_COLORS, DEFAULT_COLOR, type Annot } from '../../core/annotations';
 import type { PageRef } from '../../core/types';
 import type { ReaderMemory } from '../../state/workspace';
@@ -45,10 +46,12 @@ interface Props {
   onAnnotate: (pageId: string, annots: Annot[], removed: number[]) => void;
   /** Replaces the values typed into the form fields of one page. */
   onFill: (pageId: string, fields: Record<number, string>) => void;
+  /** Replaces the changes to the existing text and pictures of one page. */
+  onEdit: (pageId: string, edits: Edit[]) => void;
 }
 
 /** Continuous view of all pages with zoom and keyboard paging. */
-export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb, memory, onMemory, onAnnotate, onFill }: Props) {
+export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb, memory, onMemory, onAnnotate, onFill, onEdit }: Props) {
   const { t, lang } = useI18n();
   const scroller = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState<Size>({ width: 800, height: 600 });
@@ -74,6 +77,7 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
   const [pictureProblem, setPictureProblem] = useState(false);
   const [today] = useState(() => new Date());
   const dateText = useMemo(() => today.toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-GB'), [today, lang]);
+  const editPage = useCallback((page: PageRef, edits: Edit[]) => onEdit(page.id, edits), [onEdit]);
   const fill = useCallback((page: PageRef, fields: Record<number, string>) => onFill(page.id, fields), [onFill]);
   const [fileComments, setFileComments] = useState<FileComments>({});
   const askedComments = useRef(new Set<string>());
@@ -104,7 +108,7 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
       pages.reduce((n, p) => {
         const gone = new Set(p.removed ?? []);
         const own = (fileComments[`${p.docId}:${p.srcIndex}`] ?? []).filter((c) => !gone.has(c.index)).length;
-        return n + own + (p.annots?.length ?? 0);
+        return n + own + (p.annots?.length ?? 0) + (p.edits?.length ?? 0);
       }, 0),
     [pages, fileComments],
   );
@@ -482,6 +486,7 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
               dateText={dateText}
               picture={picture}
               onFill={fill}
+              onEdits={editPage}
               selectedId={selectedId}
               onSelect={setSelectedId}
               onAnnots={annotate}
@@ -532,6 +537,7 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
           onSelect={setSelectedId}
           onGo={go}
           onChange={(index, annots) => annotate(pages[index], annots)}
+          onEdits={(index, edits) => editPage(pages[index], edits)}
           onRemoveFile={(index, n) => onAnnotate(pages[index].id, pages[index].annots ?? [], [...(pages[index].removed ?? []), n])}
         />
       )}

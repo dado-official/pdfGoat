@@ -4,6 +4,7 @@ import type { PDFDocument } from 'mupdf';
 import { loadMupdf } from './mupdf';
 import { AppError, type ErrorCode, type ErrorParams } from '../core/errors';
 import type { Annot } from '../core/annotations';
+import { colorHex, type FontStyle } from '../core/edits';
 import { addComment, listComments } from './annotate';
 import { applyFields, hideWidgets, listFields, type FormField } from './forms';
 
@@ -12,6 +13,8 @@ export type ViewRequest =
   | { id: number; type: 'render'; docId: string; pageIndex: number; width: number; rotation: number; hidden?: number[]; annots?: Annot[]; fields?: Record<number, string>; hideForms?: boolean }
   | { id: number; type: 'fields'; docId: string; pageIndex: number }
   | { id: number; type: 'renderBytes'; bytes: Uint8Array; width: number }
+  | { id: number; type: 'images'; docId: string; pageIndex: number }
+  | { id: number; type: 'imagePng'; docId: string; pageIndex: number; index: number }
   | { id: number; type: 'comments'; docId: string; pageIndex: number }
   | { id: number; type: 'text'; docId: string; pageIndex: number }
   | { id: number; type: 'search'; docId: string; pageIndex: number; needle: string }
@@ -57,6 +60,10 @@ export interface TextLine {
   size: number;
   /** How far the line runs along its direction. */
   length: number;
+  /** Colour of the first character, #rrggbb. */
+  color: string;
+  /** What the font of the first character looks like. */
+  font: FontStyle;
 }
 
 /** A box on the page: left, top, right, bottom in points. */
@@ -215,6 +222,56 @@ function fileComments({ docId, pageIndex }: Extract<ViewRequest, { type: 'commen
   }
 }
 
+/** The pictures on a page: their boxes, in the order MuPDF finds them. */
+function pageImages({ docId, pageIndex }: Extract<ViewRequest, { type: 'images' }>): Box[] {
+  const doc = docs.get(docId);
+  if (!doc || !hasPage(doc, pageIndex)) return [];
+  const page = doc.loadPage(pageIndex);
+  const boxes: Box[] = [];
+  try {
+    const text = page.toStructuredText('preserve-images');
+    try {
+      text.walk({ onImageBlock: ([x0, y0, x1, y1]) => boxes.push([x0, y0, x1, y1]) });
+    } finally {
+      text.destroy();
+    }
+  } finally {
+    page.destroy();
+  }
+  return boxes;
+}
+
+/** One picture of a page as PNG. */
+function imagePng({ docId, pageIndex, index }: Extract<ViewRequest, { type: 'imagePng' }>): Uint8Array {
+  const doc = docs.get(docId);
+  if (!doc || !hasPage(doc, pageIndex)) throw new AppError('renderFailed');
+  const page = doc.loadPage(pageIndex);
+  try {
+    const text = page.toStructuredText('preserve-images');
+    try {
+      let n = 0;
+      let png: Uint8Array | null = null;
+      text.walk({
+        onImageBlock(_bbox, _matrix, image) {
+          if (n++ !== index) return;
+          const pixmap = image.toPixmap();
+          try {
+            png = pixmap.asPNG().slice();
+          } finally {
+            pixmap.destroy();
+          }
+        },
+      });
+      if (!png) throw new AppError('renderFailed');
+      return png;
+    } finally {
+      text.destroy();
+    }
+  } finally {
+    page.destroy();
+  }
+}
+
 function pageFields({ docId, pageIndex }: Extract<ViewRequest, { type: 'fields' }>): FormField[] {
   const doc = docs.get(docId);
   if (!doc || !hasPage(doc, pageIndex)) return [];
@@ -239,11 +296,20 @@ function pageText({ docId, pageIndex }: Extract<ViewRequest, { type: 'text' }>):
       let line: (TextLine & { started: boolean }) | null = null;
       text.walk({
         beginLine(_bbox, _wmode, [dx, dy]) {
-          line = { text: '', x: 0, y: 0, dx, dy, size: 0, length: 0, started: false };
+          line = { text: '', x: 0, y: 0, dx, dy, size: 0, length: 0, color: '#14161a', font: { serif: false, mono: false, bold: false, italic: false }, started: false };
         },
-        onChar(c, [x, y], _font, size, quad) {
+        onChar(c, [x, y], font, size, quad, color) {
           if (!line) return;
-          if (!line.started) Object.assign(line, { x, y, size, started: true });
+          if (!line.started) {
+            Object.assign(line, {
+              x,
+              y,
+              size,
+              started: true,
+              color: colorHex(color),
+              font: { serif: font.isSerif(), mono: font.isMono(), bold: font.isBold(), italic: font.isItalic() },
+            });
+          }
           line.text += c;
           // The line ends where its farthest character ends, measured along its direction.
           for (let i = 0; i < 8; i += 2) {
@@ -344,6 +410,12 @@ self.onmessage = async ({ data }: MessageEvent<ViewRequest>) => {
       }
       case 'comments':
         return post({ id: data.id, ok: true, result: fileComments(data) });
+      case 'images':
+        return post({ id: data.id, ok: true, result: pageImages(data) });
+      case 'imagePng': {
+        const png = imagePng(data);
+        return post({ id: data.id, ok: true, result: png }, [png.buffer]);
+      }
       case 'fields':
         return post({ id: data.id, ok: true, result: pageFields(data) });
       case 'text':

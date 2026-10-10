@@ -358,6 +358,25 @@ export const de = {
   'cmd.crop.kw': 'beschneiden rand',
   'cmd.resize': 'Seitengröße ändern',
   'cmd.resize.kw': 'papier a4 format',
+
+  // Changing existing content
+  'comment.tool.editText': 'Text ändern',
+  'comment.tool.editImage': 'Bild ändern',
+  'comment.editTools': 'Vorhandenen Inhalt ändern',
+  'comment.kind.editText': 'Text geändert',
+  'comment.kind.editImage': 'Bild geändert',
+  'edit.was': 'Vorher: {text}',
+  'edit.font': 'Die ursprüngliche Schrift wird durch {font} ersetzt, ähnlich im Stil.',
+  'edit.removed': 'Zeile entfernt',
+  'edit.newText': 'Neuer Text der Zeile',
+  'edit.pictureKept': 'Das Bild wurde geändert.',
+  'edit.pictureRemoved': 'Bild entfernt',
+  'edit.remove': 'Entfernen',
+  'edit.bigger': 'Größer',
+  'edit.smaller': 'Kleiner',
+  'edit.replace': 'Ersetzen',
+  'edit.restore': 'Wiederherstellen',
+  'edit.reset': 'Änderung zurücknehmen',
 } as const;
 
 export type MessageKey = keyof typeof de;

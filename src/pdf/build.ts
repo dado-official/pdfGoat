@@ -6,6 +6,7 @@ import { addComment, deleteComments } from './annotate';
 import { applyFields } from './forms';
 import { embedText, textWidth } from './embed';
 import { applyPageBox } from './pagebox';
+import { applyEdits } from './edit';
 import { markPosition, markText } from '../core/marks';
 import type { PageRef } from '../core/types';
 
@@ -162,6 +163,11 @@ export async function buildPdf(
       engine.appendDocument(out, part.doc!, named && part.primary && !part.source.generated ? title(part.source) : undefined);
     }
     engine.keepPages(out, pages.map((p) => position.get(p.id)!));
+
+    // Changed text and pictures: the old ones are cut out of the page, the new ones written in.
+    pages.forEach((p, i) => {
+      if (p.edits?.length) applyEdits(engine, out, out.loadPage(i), p.edits);
+    });
 
     // Comments are written before the extra rotation, because their positions are given in the
     // page's own space.

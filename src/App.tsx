@@ -510,6 +510,7 @@ export default function App() {
                 onMemory={(memory) => dispatchWs({ type: 'memory', id: tab.id, memory })}
                 onAnnotate={(id, annots, removed) => dispatch({ type: 'annotate', id, annots, removed })}
                 onFill={(id, fields) => dispatch({ type: 'fill', id, fields })}
+                onEdit={(id, edits) => dispatch({ type: 'edit', id, edits })}
               />
             ) : tab ? (
               <>

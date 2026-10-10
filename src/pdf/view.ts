@@ -175,6 +175,14 @@ export const getLinks = (doc: SourceDoc, srcIndex: number) =>
 export const getComments = (doc: SourceDoc, srcIndex: number) =>
   call<FileComment[]>({ type: 'comments', docId: doc.id, pageIndex: srcIndex });
 
+/** The boxes of the pictures on one page. */
+export const getImages = (doc: SourceDoc, srcIndex: number) =>
+  call<Box[]>({ type: 'images', docId: doc.id, pageIndex: srcIndex });
+
+/** One picture of a page as PNG bytes; `index` counts in the order of `getImages`. */
+export const getImagePng = (doc: SourceDoc, srcIndex: number, index: number) =>
+  call<Uint8Array>({ type: 'imagePng', docId: doc.id, pageIndex: srcIndex, index });
+
 /** The form fields on one page. */
 export const getFields = (doc: SourceDoc, srcIndex: number) =>
   call<FormField[]>({ type: 'fields', docId: doc.id, pageIndex: srcIndex });

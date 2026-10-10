@@ -355,4 +355,23 @@ export const en: Record<MessageKey, string> = {
   'cmd.crop.kw': 'trim margin',
   'cmd.resize': 'Change page size',
   'cmd.resize.kw': 'paper a4 format',
+
+  // Changing existing content
+  'comment.tool.editText': 'Edit text',
+  'comment.tool.editImage': 'Edit picture',
+  'comment.editTools': 'Change existing content',
+  'comment.kind.editText': 'Text changed',
+  'comment.kind.editImage': 'Picture changed',
+  'edit.was': 'Before: {text}',
+  'edit.font': 'The original font is replaced by {font}, similar in style.',
+  'edit.removed': 'Line removed',
+  'edit.newText': 'New text of the line',
+  'edit.pictureKept': 'The picture was changed.',
+  'edit.pictureRemoved': 'Picture removed',
+  'edit.remove': 'Remove',
+  'edit.bigger': 'Larger',
+  'edit.smaller': 'Smaller',
+  'edit.replace': 'Replace',
+  'edit.restore': 'Restore',
+  'edit.reset': 'Undo this change',
 };

@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import type { AnnotKind } from '../../core/annotations';
 
 /** What the pointer does on a page: nothing special (select and read), or draw this kind. */
-export type Tool = AnnotKind | 'date' | 'check' | 'signature' | 'initials' | 'embedText' | 'embedImage' | null;
+export type Tool = AnnotKind | 'date' | 'check' | 'signature' | 'initials' | 'embedText' | 'embedImage' | 'editText' | 'editImage' | null;
 
 /** A picture the user made (signature or initials), ready to be placed. */
 export interface Picture {
@@ -15,6 +15,9 @@ export const FILL_TOOLS = ['date', 'check', 'signature', 'initials'] as const;
 
 /** Tools that write into the page itself or add a link. */
 export const INSERT_TOOLS = ['embedText', 'embedImage', 'link'] as const;
+
+/** Tools that change what the page already contains. */
+export const EDIT_TOOLS = ['editText', 'editImage'] as const;
 
 export const TOOLS = ['highlight', 'underline', 'strikeout', 'note', 'text', 'ink', 'square', 'circle', 'line', 'arrow', 'stamp'] as const;
 
