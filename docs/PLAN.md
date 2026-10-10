@@ -202,6 +202,8 @@ Stand: umgesetzt (10.10.2026). Kommentare liegen als Daten an der Seite (`PageRe
 
 ### M5 – Ausfüllen und Unterschreiben
 
+Stand: umgesetzt (10.10.2026). Formularwerte liegen wie Kommentare an der Seite (`PageRef.fields`, Schlüssel ist die Position unter den Widgets der Seite) und ändern sich über die Änderung `fill`. Die Leseansicht zeichnet Seiten mit Feldern ohne die Felder und legt eigene Steuerelemente darüber (`features/form/FormLayer.tsx`). Beim Speichern schreibt `pdf/forms.ts` die Werte in die Arbeitskopie vor dem Zusammenfügen, MuPDF erzeugt die Darstellung. „Formular glätten“ ist eine Wahl in der Leiste und ruft `bake(false, true)` auf, Kommentare bleiben dabei Kommentare. Datum, Häkchen, Unterschrift und Kürzel sind Kommentare mit einem `tag` (Textfeld oder Bild), Unterschrift und Kürzel entstehen im Dialog durch Zeichnen, Tippen oder ein Bild und können im lokalen Speicher des Browsers gemerkt werden. Bekannte Grenzen: Auswahllisten mit Mehrfachauswahl werden als einfache Liste behandelt; Felder mit JavaScript-Berechnung werden nicht neu berechnet; Signaturfelder und Schaltflächen sind nicht ausfüllbar; die getippte Unterschrift nutzt eine Schreibschrift des Systems und sieht deshalb je nach Gerät anders aus; digitale Signaturen mit Zertifikat folgen nach M10.
+
 - Formularfelder ausfüllen: Text, Checkbox, Radiobutton, Auswahlliste, Datum
 - Option „Formular glätten“ (Felder fest ins PDF schreiben)
 - Unterschrift zeichnen, tippen oder als Bild laden, optional lokal im Browser merken

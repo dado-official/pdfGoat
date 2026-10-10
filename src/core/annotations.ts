@@ -38,6 +38,8 @@ export interface Annot {
   width?: number;
   /** Font size of a text box, in points. */
   fontSize?: number;
+  /** What a filled-in item is, for the list: a signature, initials, a check mark or a date. */
+  tag?: 'signature' | 'initials' | 'check' | 'date';
   /** Stamp: the picture as PNG bytes. */
   image?: Uint8Array;
   created: number;
@@ -47,7 +49,7 @@ export const COMMENT_COLORS = ['#f5c400', '#e5484d', '#3a8f4b', '#3347c9', '#141
 export const DEFAULT_COLOR = COMMENT_COLORS[0];
 
 /** Kinds that mark text and so need a text selection. */
-export const isMarkup = (k: AnnotKind) => k === 'highlight' || k === 'underline' || k === 'strikeout';
+export const isMarkup = (k: string): k is 'highlight' | 'underline' | 'strikeout' => k === 'highlight' || k === 'underline' || k === 'strikeout';
 
 /** Kinds that are drawn by dragging a rectangle. */
 export const isDragged = (k: AnnotKind) => k === 'square' || k === 'circle' || k === 'text' || k === 'stamp';

@@ -21,7 +21,8 @@ import { useI18n } from '../../i18n/context';
 import { getComments, getOutline, type SourceDoc } from '../../pdf/view';
 import CommentBar from '../comment/CommentBar';
 import CommentPanel, { type FileComments } from '../comment/CommentPanel';
-import { useClearSelection, type Tool } from '../comment/tools';
+import { useClearSelection, type Picture, type Tool } from '../comment/tools';
+import SignatureDialog from '../form/SignatureDialog';
 import type { StampName } from '../comment/stamps';
 import ReadPage from './ReadPage';
 import Sidebar, { type SidebarTab } from './Sidebar';
@@ -41,11 +42,13 @@ interface Props {
   onMemory: (memory: ReaderMemory) => void;
   /** Replaces the comments of one page; `removed` lists the file's own comments that were deleted. */
   onAnnotate: (pageId: string, annots: Annot[], removed: number[]) => void;
+  /** Replaces the values typed into the form fields of one page. */
+  onFill: (pageId: string, fields: Record<number, string>) => void;
 }
 
 /** Continuous view of all pages with zoom and keyboard paging. */
-export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb, memory, onMemory, onAnnotate }: Props) {
-  const { t } = useI18n();
+export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb, memory, onMemory, onAnnotate, onFill }: Props) {
+  const { t, lang } = useI18n();
   const scroller = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState<Size>({ width: 800, height: 600 });
   const [zoom, setZoom] = useState<Zoom>(memory?.zoom ?? { kind: 'width' });
@@ -64,6 +67,11 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
   const [stampName, setStampName] = useState<StampName>('approved');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panel, setPanel] = useState(false);
+  const [signing, setSigning] = useState<'signature' | 'initials' | null>(null);
+  const [picture, setPicture] = useState<Picture | null>(null);
+  const [today] = useState(() => new Date());
+  const dateText = useMemo(() => today.toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-GB'), [today, lang]);
+  const fill = useCallback((page: PageRef, fields: Record<number, string>) => onFill(page.id, fields), [onFill]);
   const [fileComments, setFileComments] = useState<FileComments>({});
   const askedComments = useRef(new Set<string>());
   const stampText = t(`stamp.${stampName}`);
@@ -410,6 +418,8 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
       <CommentBar
         tool={tool}
         onTool={(next) => {
+          // A signature is made first, then placed with a click.
+          if (next === 'signature' || next === 'initials') return setSigning(next);
           setTool(next);
           if (next && !picked.current) setColor(next === 'highlight' || next === 'note' ? DEFAULT_COLOR : SHAPE_COLOR);
         }}
@@ -463,6 +473,9 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
               tool={tool}
               color={color}
               stamp={stamp}
+              dateText={dateText}
+              picture={picture}
+              onFill={fill}
               selectedId={selectedId}
               onSelect={setSelectedId}
               onAnnots={annotate}
@@ -471,6 +484,19 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
           ))}
         </div>
       </div>
+      {signing && (
+        <SignatureDialog
+          kind={signing}
+          color={color}
+          onDone={(made) => {
+            if (made) {
+              setPicture(made);
+              setTool(signing);
+            }
+            setSigning(null);
+          }}
+        />
+      )}
       {panel && (
         <CommentPanel
           pages={pages}

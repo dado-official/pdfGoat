@@ -11,7 +11,8 @@ import {
 import type { Size } from '../../core/readerLayout';
 import { overlayTransform } from '../../core/textLayer';
 import { makeStamp, type StampName } from './stamps';
-import { isDrawTool, type Tool } from './tools';
+import { makeCheck } from './pictures';
+import { isDrawTool, type Picture, type Tool } from './tools';
 
 interface Props {
   size: Size;
@@ -21,6 +22,9 @@ interface Props {
   tool: Tool;
   color: string;
   stamp: { name: StampName; text: string };
+  /** Today's date as it is written into the page, and the signature or initials waiting to be placed. */
+  dateText: string;
+  picture: Picture | null;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onChange: (annots: Annot[]) => void;
@@ -39,7 +43,7 @@ const shift = (a: Annot, dx: number, dy: number): Annot => ({
 });
 
 /** Comments of one page, drawn over it, and the pointer handling that creates and moves them. */
-export default function AnnotLayer({ size, rotation, scale, annots, tool, color, stamp, selectedId, onSelect, onChange, onPlaced }: Props) {
+export default function AnnotLayer({ size, rotation, scale, annots, tool, color, stamp, dateText, picture, selectedId, onSelect, onChange, onPlaced }: Props) {
   const [draft, setDraft] = useState<{ start: Pt; points: Pt[] } | null>(null);
   const [moving, setMoving] = useState<{ id: string; from: Pt; dx: number; dy: number } | null>(null);
   const drawing = isDrawTool(tool);
@@ -49,9 +53,9 @@ export default function AnnotLayer({ size, rotation, scale, annots, tool, color,
     return screenToPage(e.clientX - r.left, e.clientY - r.top, size, rotation, scale);
   };
 
-  async function finish(kind: AnnotKind, d: { start: Pt; points: Pt[] }) {
+  async function finish(kind: Exclude<NonNullable<Tool>, 'highlight' | 'underline' | 'strikeout'>, d: { start: Pt; points: Pt[] }) {
     const end = d.points.at(-1) ?? d.start;
-    const base = { id: newId(), kind, color, contents: '', created: Date.now() };
+    const base = { id: newId(), kind: kind as AnnotKind, color, contents: '', created: Date.now() };
     const dist = Math.hypot(end[0] - d.start[0], end[1] - d.start[1]);
     let made: Annot | null = null;
     switch (kind) {
@@ -74,6 +78,24 @@ export default function AnnotLayer({ size, rotation, scale, annots, tool, color,
       case 'arrow':
         if (dist > 6) made = { ...base, box: boundsOf([d.start, end], 2), line: [d.start, end], width: 2 };
         break;
+      case 'date':
+        made = { ...base, kind: 'text', tag: 'date', contents: dateText, box: [d.start[0], d.start[1], d.start[0] + 90, d.start[1] + 18], fontSize: 12 };
+        break;
+      case 'check': {
+        const check = await makeCheck(color);
+        made = { ...base, kind: 'stamp', tag: 'check', box: [d.start[0] - 7, d.start[1] - 7, d.start[0] + 7, d.start[1] + 7], image: check.bytes };
+        break;
+      }
+      case 'signature':
+      case 'initials': {
+        if (!picture) return;
+        const w = dist > 12 ? Math.abs(end[0] - d.start[0]) : kind === 'signature' ? 150 : 60;
+        const h = w / picture.ratio;
+        const x = dist > 12 ? Math.min(d.start[0], end[0]) : d.start[0] - w / 2;
+        const y = dist > 12 ? Math.min(d.start[1], end[1]) : d.start[1] - h / 2;
+        made = { ...base, kind: 'stamp', tag: kind, color: '#14161a', box: [x, y, x + w, y + h], image: picture.bytes };
+        break;
+      }
       case 'stamp': {
         const w = dist > 12 ? Math.abs(end[0] - d.start[0]) : 150;
         const h = dist > 12 ? Math.abs(end[1] - d.start[1]) : 48;
@@ -273,13 +295,13 @@ function StampImage({ a }: { a: Annot }) {
   return <image href={url} x={a.box[0]} y={a.box[1]} width={a.box[2] - a.box[0]} height={a.box[3] - a.box[1]} preserveAspectRatio="none" />;
 }
 
-function Draft({ tool, color, d }: { tool: AnnotKind; color: string; d: { start: Pt; points: Pt[] } }) {
+function Draft({ tool, color, d }: { tool: NonNullable<Tool>; color: string; d: { start: Pt; points: Pt[] } }) {
   const end = d.points.at(-1) ?? d.start;
   const common = { stroke: color, strokeWidth: 2, fill: 'none', strokeDasharray: tool === 'ink' ? undefined : '4 3' };
   if (tool === 'ink') return <polyline {...common} points={d.points.map((p) => p.join(',')).join(' ')} strokeLinecap="round" strokeLinejoin="round" />;
   if (tool === 'line' || tool === 'arrow') return <line {...common} x1={d.start[0]} y1={d.start[1]} x2={end[0]} y2={end[1]} />;
   const b = boxBetween(d.start, end);
   if (tool === 'circle') return <ellipse {...common} cx={(b[0] + b[2]) / 2} cy={(b[1] + b[3]) / 2} rx={(b[2] - b[0]) / 2} ry={(b[3] - b[1]) / 2} />;
-  if (tool === 'square' || tool === 'text' || tool === 'stamp') return <rect {...common} x={b[0]} y={b[1]} width={b[2] - b[0]} height={b[3] - b[1]} />;
+  if (tool === 'square' || tool === 'text' || tool === 'stamp' || tool === 'signature' || tool === 'initials') return <rect {...common} x={b[0]} y={b[1]} width={b[2] - b[0]} height={b[3] - b[1]} />;
   return null;
 }

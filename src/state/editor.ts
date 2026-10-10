@@ -59,6 +59,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case 'moveTo':
     case 'reverse':
     case 'annotate':
+    case 'fill':
       return record(state, action);
 
     case 'toggleSelect': {

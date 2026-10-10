@@ -815,3 +815,34 @@ kbd {
 .comment-delete { align-self: flex-start; padding: 0; border: 0; background: none; color: var(--dust); font-size: 13px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .comment-delete:hover { color: var(--danger); }
 .comment-note { margin: auto 0 0; padding: 12px; color: var(--dust); font-size: 12px; }
+
+/* Form fields over the page */
+.form-layer { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; }
+.form-field {
+  position: absolute;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0 3px;
+  border: 1px solid rgb(51 71 201 / 0.4);
+  border-radius: 2px;
+  background: rgb(51 71 201 / 0.08);
+  color: var(--ink);
+  font-family: Helvetica, Arial, sans-serif;
+  pointer-events: auto;
+}
+.form-field:focus-visible { outline: 2px solid var(--signal); outline-offset: 0; background: rgb(255 255 255 / 0.9); }
+textarea.form-field { padding-top: 2px; resize: none; line-height: 1.2; }
+.form-check, .form-radio { display: grid; place-items: center; padding: 0; cursor: pointer; background: rgb(255 255 255 / 0.85); }
+.form-radio { border-radius: 50%; }
+.form-check svg { width: 80%; height: 80%; fill: none; stroke: var(--signal); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.form-radio .dot { width: 50%; height: 50%; border-radius: 50%; background: var(--signal); }
+.flatten { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding: 0 4px; font-size: 13px; color: var(--dust); cursor: pointer; }
+.sign { width: min(560px, calc(100vw - 32px)); }
+.sign-body { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin: 12px 0; min-height: 190px; }
+.sign-canvas { width: 100%; aspect-ratio: 3 / 1; border: 1px dashed var(--edge); border-radius: var(--radius); background: #fff; touch-action: none; cursor: crosshair; }
+.sign-type { width: 100%; padding: 8px 10px; border: 1px solid var(--edge); border-radius: var(--radius); font: inherit; }
+.sign-preview { margin: 0; min-height: 70px; font: italic 44px/1.4 'Snell Roundhand', 'Segoe Script', 'Brush Script MT', 'Lucida Handwriting', cursive; }
+.sign-saved { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.sign-saved img { max-width: 100%; max-height: 140px; border: 1px solid var(--edge); border-radius: var(--radius); background: #fff; padding: 8px; }
+.sign-remember { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 14px; }
+.sign-problem { margin: 0 0 8px; color: var(--danger); font-size: 14px; }

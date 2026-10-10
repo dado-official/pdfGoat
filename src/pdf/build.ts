@@ -3,6 +3,7 @@ import type { PDFDocument } from 'mupdf';
 import { loadMupdf } from './mupdf';
 import { AppError } from '../core/errors';
 import { addComment, deleteComments } from './annotate';
+import { applyFields } from './forms';
 import type { PageRef } from '../core/types';
 
 /** What building needs from an opened file. */
@@ -83,6 +84,7 @@ export async function buildPdf(
   sources: Record<string, BuildSource>,
   /** Called after each file has been prepared and once more when the result is assembled. */
   onProgress?: (done: number, total: number) => void,
+  options: { flatten?: boolean } = {},
 ): Promise<Uint8Array> {
   if (!pages.length) throw new AppError('noPages');
   const engine = await loadEngine();
@@ -119,7 +121,11 @@ export async function buildPdf(
       const lost = part.refs.find((p) => !hasPage(doc, p.srcIndex));
       if (lost) throw new AppError('pageMissing', { name: part.source.name ?? '', number: lost.srcIndex + 1 });
       // Comments the user deleted are removed from the working copy before the pages move on.
-      for (const p of part.refs) if (p.removed?.length) deleteComments(doc.loadPage(p.srcIndex), p.removed);
+      for (const p of part.refs) {
+        if (p.removed?.length) deleteComments(doc.loadPage(p.srcIndex), p.removed);
+        // The same for the values typed into form fields.
+        if (p.fields && Object.keys(p.fields).length) applyFields(doc.loadPage(p.srcIndex), p.fields);
+      }
       engine.keepPages(doc, part.refs.map((p) => p.srcIndex));
       onProgress?.(list.indexOf(part) + 1, total);
     }
@@ -155,6 +161,9 @@ export async function buildPdf(
       const own = page.getInheritable('Rotate');
       page.put('Rotate', ((((own.isNumber() ? own.asNumber() : 0) + p.rotation) % 360) + 360) % 360);
     });
+
+    // "Flatten form": the fields become part of the page, so they can no longer be changed.
+    if (options.flatten) out.bake(false, true);
 
     out.setMetaData('info:Producer', 'PDFgoat');
     // The result lives in the engine's memory, so it is copied out before that is freed.

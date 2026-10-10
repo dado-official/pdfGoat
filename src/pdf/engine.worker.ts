@@ -9,7 +9,7 @@ export interface WorkerSource {
   password?: string;
 }
 
-export type WorkerRequest = { id: number; pages: PageRef[]; sources: Record<string, WorkerSource> };
+export type WorkerRequest = { id: number; pages: PageRef[]; sources: Record<string, WorkerSource>; flatten?: boolean };
 
 export type WorkerResponse =
   | { id: number; type: 'progress'; done: number; total: number }
@@ -19,7 +19,7 @@ export type WorkerResponse =
 const post = (message: WorkerResponse, transfer: Transferable[] = []) => self.postMessage(message, { transfer });
 
 self.onmessage = async ({ data }: MessageEvent<WorkerRequest>) => {
-  const { id, pages, sources } = data;
+  const { id, pages, sources, flatten } = data;
   try {
     const bytes = await buildPdf(
       pages,
@@ -27,6 +27,7 @@ self.onmessage = async ({ data }: MessageEvent<WorkerRequest>) => {
         Object.entries(sources).map(([key, s]) => [key, { name: s.name, password: s.password, read: async () => s.bytes }]),
       ),
       (done, total) => post({ id, type: 'progress', done, total }),
+      { flatten },
     );
     post({ id, type: 'done', bytes }, [bytes.buffer]);
   } catch (err) {

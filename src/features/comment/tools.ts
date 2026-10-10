@@ -2,12 +2,21 @@ import { useEffect } from 'react';
 import type { AnnotKind } from '../../core/annotations';
 
 /** What the pointer does on a page: nothing special (select and read), or draw this kind. */
-export type Tool = AnnotKind | null;
+export type Tool = AnnotKind | 'date' | 'check' | 'signature' | 'initials' | null;
+
+/** A picture the user made (signature or initials), ready to be placed. */
+export interface Picture {
+  bytes: Uint8Array;
+  /** Width divided by height. */
+  ratio: number;
+}
+
+export const FILL_TOOLS = ['date', 'check', 'signature', 'initials'] as const;
 
 export const TOOLS = ['highlight', 'underline', 'strikeout', 'note', 'text', 'ink', 'square', 'circle', 'line', 'arrow', 'stamp'] as const;
 
-const DRAWN: ReadonlySet<AnnotKind> = new Set(['note', 'text', 'ink', 'square', 'circle', 'line', 'arrow', 'stamp']);
-export const isDrawTool = (tool: Tool): tool is AnnotKind => tool !== null && DRAWN.has(tool);
+const DRAWN: ReadonlySet<string> = new Set(['note', 'text', 'ink', 'square', 'circle', 'line', 'arrow', 'stamp', 'date', 'check', 'signature', 'initials']);
+export const isDrawTool = (tool: Tool): tool is Exclude<Tool, null | 'highlight' | 'underline' | 'strikeout'> => tool !== null && DRAWN.has(tool);
 
 /** Deselect when the pointer ends up on the page itself, not on a comment. */
 export function useClearSelection(onSelect: (id: string | null) => void) {

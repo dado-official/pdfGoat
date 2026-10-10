@@ -5,10 +5,12 @@ import { loadMupdf } from './mupdf';
 import { AppError, type ErrorCode, type ErrorParams } from '../core/errors';
 import type { Annot } from '../core/annotations';
 import { addComment, listComments } from './annotate';
+import { applyFields, hideWidgets, listFields, type FormField } from './forms';
 
 export type ViewRequest =
   | { id: number; type: 'open'; docId: string; name: string; bytes: Uint8Array; password?: string }
-  | { id: number; type: 'render'; docId: string; pageIndex: number; width: number; rotation: number; hidden?: number[]; annots?: Annot[] }
+  | { id: number; type: 'render'; docId: string; pageIndex: number; width: number; rotation: number; hidden?: number[]; annots?: Annot[]; fields?: Record<number, string>; hideForms?: boolean }
+  | { id: number; type: 'fields'; docId: string; pageIndex: number }
   | { id: number; type: 'comments'; docId: string; pageIndex: number }
   | { id: number; type: 'text'; docId: string; pageIndex: number }
   | { id: number; type: 'search'; docId: string; pageIndex: number; needle: string }
@@ -120,7 +122,7 @@ function pageSize(doc: PDFDocument, index: number): readonly [number, number] | 
 }
 
 /** Renders a page to a PNG that is `width` pixels wide, turned clockwise by `rotation` on top of its own. */
-function render(engine: Engine, { docId, pageIndex, width, rotation, hidden, annots }: Extract<ViewRequest, { type: 'render' }>): Uint8Array {
+function render(engine: Engine, { docId, pageIndex, width, rotation, hidden, annots, fields, hideForms }: Extract<ViewRequest, { type: 'render' }>): Uint8Array {
   const doc = docs.get(docId);
   if (!doc) throw new AppError('renderFailed');
   if (!hasPage(doc, pageIndex)) throw new AppError('renderFailed');
@@ -137,6 +139,9 @@ function render(engine: Engine, { docId, pageIndex, width, rotation, hidden, ann
     const restore = (hidden ?? []).flatMap((i) => (existing[i] ? [[existing[i], existing[i].getFlags()] as const] : []));
     for (const [annot, flags] of restore) annot.setFlags(flags | HIDDEN);
     const added = annots?.length ? listNew(engine, page, annots) : [];
+    // Typed values are shown for this drawing only; the reading view draws its own fields instead.
+    const undoFields = fields && Object.keys(fields).length ? applyFields(page, fields) : null;
+    const undoHide = hideForms ? hideWidgets(page) : null;
     try {
       const pixmap = page.toPixmap(matrix, engine.ColorSpace.DeviceRGB, false, true);
       try {
@@ -147,6 +152,8 @@ function render(engine: Engine, { docId, pageIndex, width, rotation, hidden, ann
     } finally {
       for (const [annot, flags] of restore) annot.setFlags(flags);
       for (const annot of added) page.deleteAnnotation(annot);
+      undoHide?.();
+      undoFields?.();
     }
   } finally {
     page.destroy();
@@ -175,6 +182,19 @@ function fileComments({ docId, pageIndex }: Extract<ViewRequest, { type: 'commen
       }
       return { index, type: a.getType(), contents: a.getContents(), author: a.getAuthor(), box: [x0, y0, x1, y1] as Box, date };
     });
+  } catch {
+    return [];
+  } finally {
+    page.destroy();
+  }
+}
+
+function pageFields({ docId, pageIndex }: Extract<ViewRequest, { type: 'fields' }>): FormField[] {
+  const doc = docs.get(docId);
+  if (!doc || !hasPage(doc, pageIndex)) return [];
+  const page = doc.loadPage(pageIndex);
+  try {
+    return listFields(page);
   } catch {
     return [];
   } finally {
@@ -294,6 +314,8 @@ self.onmessage = async ({ data }: MessageEvent<ViewRequest>) => {
       }
       case 'comments':
         return post({ id: data.id, ok: true, result: fileComments(data) });
+      case 'fields':
+        return post({ id: data.id, ok: true, result: pageFields(data) });
       case 'text':
         return post({ id: data.id, ok: true, result: pageText(data) });
       case 'search':

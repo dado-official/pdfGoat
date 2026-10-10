@@ -1,7 +1,7 @@
 import { expect, test as base, type Download, type Page } from '@playwright/test';
 import { unzipSync } from 'fflate';
 import { readFile, rm, writeFile } from 'node:fs/promises';
-import { annotationsOf, describePdf, makeCommentedPdf, makeHalfBrokenPdf, makePdf, makeProtectedPdf, makeRichPdf } from '../fixtures';
+import { annotationsOf, describePdf, fieldCount, formValues, makeCommentedPdf, makeFormPdf, makeHalfBrokenPdf, makePdf, makeProtectedPdf, makeRichPdf } from '../fixtures';
 
 const pdfFile = (name: string, bytes: Uint8Array) => ({ name, mimeType: 'application/pdf', buffer: Buffer.from(bytes) });
 
@@ -782,6 +782,114 @@ test.describe('comments', () => {
   test('keeps the comments of a file when saving without changes', async ({ app: page }) => {
     await openOne(page, await makeCommentedPdf());
     expect(await save(page)).toEqual([[{ type: 'Text', contents: 'Alter Kommentar' }]]);
+  });
+});
+
+test.describe('forms and signatures', () => {
+  const sheet = (page: Page) => page.locator('.read-page').first();
+  const tool = (page: Page, name: string) => page.getByRole('button', { name, exact: true });
+  const panelButton = (page: Page) => page.getByRole('button', { name: /^Kommentare \(/ });
+
+  async function openOne(page: Page, bytes: Uint8Array) {
+    await page.getByTestId('file-input').setInputFiles(pdfFile('formular.pdf', bytes));
+    await expect(page.locator('.card img')).toHaveCount(1);
+    await page.getByRole('button', { name: 'Lesen', exact: true }).click();
+    await expect(page.locator('.read-page img')).toBeVisible();
+  }
+
+  async function download(page: Page) {
+    const file = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'PDF speichern' }).click();
+    return downloadBytes(await file);
+  }
+
+  async function fillForm(page: Page) {
+    await page.getByRole('textbox', { name: 'name' }).fill('Erika Müller');
+    await page.getByRole('textbox', { name: 'name' }).blur();
+    await page.getByRole('checkbox', { name: 'agree' }).click();
+    await page.getByRole('radio', { name: 'colour' }).nth(1).click();
+    await page.getByRole('combobox', { name: 'country' }).selectOption('Österreich');
+  }
+
+  test('fills in the fields of a form and saves the values', async ({ app: page }) => {
+    await openOne(page, await makeFormPdf());
+    await expect(page.getByRole('textbox', { name: 'name' })).toBeVisible();
+    await fillForm(page);
+    await expect(page.getByRole('radio', { name: 'colour' }).nth(1)).toHaveAttribute('aria-checked', 'true');
+    // Choosing another radio button clears the first.
+    await page.getByRole('radio', { name: 'colour' }).nth(2).click();
+    await expect(page.getByRole('radio', { name: 'colour' }).nth(1)).toHaveAttribute('aria-checked', 'false');
+    expect(await formValues(await download(page))).toEqual({ name: 'Erika Müller', agree: true, colour: 'blue', country: 'Österreich', fields: 4 });
+  });
+
+  test('undoes and redoes typed values', async ({ app: page }) => {
+    await openOne(page, await makeFormPdf());
+    await fillForm(page);
+    const name = page.getByRole('textbox', { name: 'name' });
+    for (let i = 0; i < 4; i++) await page.getByRole('button', { name: 'Rückgängig' }).click();
+    await expect(name).toHaveValue('');
+    await expect(page.getByRole('checkbox', { name: 'agree' })).toHaveAttribute('aria-checked', 'false');
+    await page.getByRole('button', { name: 'Wiederholen' }).click();
+    await expect(name).toHaveValue('Erika Müller');
+  });
+
+  test('flattens the form on request', async ({ app: page }) => {
+    await openOne(page, await makeFormPdf());
+    await fillForm(page);
+    await page.getByLabel('Formular glätten').check();
+    const bytes = await download(page);
+    expect(await fieldCount(bytes)).toBe(0);
+  });
+
+  test('places a date and a check mark', async ({ app: page }) => {
+    await openOne(page, await makePdf([{ width: 595, label: 'Hallo' }]));
+    await tool(page, 'Datum').click();
+    await sheet(page).click({ position: { x: 100, y: 150 } });
+    await tool(page, 'Häkchen').click();
+    await sheet(page).click({ position: { x: 300, y: 150 } });
+    await expect(panelButton(page)).toHaveText('Kommentare (2)');
+    await panelButton(page).click();
+    await expect(page.locator('.comment-head').filter({ hasText: 'Datum' })).toBeVisible();
+    await expect(page.locator('.comment-head').filter({ hasText: 'Häkchen' })).toBeVisible();
+    const found = (await annotationsOf(await download(page)))[0];
+    expect(found.map((a) => a.type)).toEqual(['FreeText', 'Stamp']);
+    expect(found[0].contents).toMatch(/^\d{2}\.\d{2}\.\d{4}$/);
+  });
+
+  test('signs with a typed name and remembers it for next time', async ({ app: page }) => {
+    await openOne(page, await makePdf([{ width: 595, label: 'Hallo' }]));
+    await tool(page, 'Unterschrift').click();
+    await page.getByRole('tab', { name: 'Tippen' }).click();
+    await page.getByRole('textbox', { name: 'Name' }).fill('Erika Muster');
+    await page.getByLabel('In diesem Browser merken').check();
+    await page.getByRole('button', { name: 'Übernehmen' }).click();
+    await sheet(page).click({ position: { x: 300, y: 250 } });
+    await expect(page.locator('.annot-layer image')).toHaveCount(1);
+    expect((await annotationsOf(await download(page)))[0].map((a) => a.type)).toEqual(['Stamp']);
+
+    await tool(page, 'Unterschrift').click();
+    await expect(page.getByRole('tab', { name: 'Gespeichert' })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('img', { name: 'Gespeicherte Unterschrift' })).toBeVisible();
+    await page.getByRole('button', { name: 'Übernehmen' }).click();
+    await sheet(page).click({ position: { x: 300, y: 350 } });
+    await expect(page.locator('.annot-layer image')).toHaveCount(2);
+  });
+
+  test('signs by drawing', async ({ app: page }) => {
+    await openOne(page, await makePdf([{ width: 595, label: 'Hallo' }]));
+    await tool(page, 'Kürzel').click();
+    await page.getByRole('button', { name: 'Übernehmen' }).click();
+    await expect(page.getByRole('alert')).toHaveText('Es gibt noch nichts zu übernehmen.');
+    const canvas = page.getByLabel('Fläche zum Unterschreiben mit Maus oder Finger');
+    const box = (await canvas.boundingBox())!;
+    await page.mouse.move(box.x + 40, box.y + 100);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 120, box.y + 40, { steps: 5 });
+    await page.mouse.move(box.x + 200, box.y + 110, { steps: 5 });
+    await page.mouse.up();
+    await page.getByRole('button', { name: 'Übernehmen' }).click();
+    await sheet(page).click({ position: { x: 300, y: 250 } });
+    await expect(page.locator('.annot-layer image')).toHaveCount(1);
   });
 });
 

@@ -193,9 +193,11 @@ export default function App() {
 
   const save = () =>
     run(t('busy.saving'), async (job) => {
-      download(await buildPdf(pages, docs, job), `${base()}.pdf`);
+      download(await buildPdf(pages, docs, { ...job, flatten }), `${base()}.pdf`);
     });
 
+  // "Flatten form" applies to everything that is saved, in every tab.
+  const [flatten, setFlatten] = useState(false);
   const [printPages, setPrintPages] = useState<PrintPage[] | null>(null);
 
   // The images are freed when the print dialog closes or when everything is closed.
@@ -226,6 +228,7 @@ export default function App() {
             dpr: 1,
             hidden: p.removed,
             annots: p.annots,
+            fields: p.fields,
           });
           made.push({ url, landscape: turned.width > turned.height });
           job.onProgress?.((i + 1) / pages.length);
@@ -246,7 +249,7 @@ export default function App() {
     run(t('busy.splitting'), async (job) => {
       if (plan === 'selection') {
         const chosen = pages.filter((p) => selected.has(p.id));
-        download(await buildPdf(chosen, docs, job), `${base()}-${t('file.selection')}.pdf`);
+        download(await buildPdf(chosen, docs, { ...job, flatten }), `${base()}-${t('file.selection')}.pdf`);
         return;
       }
       const files = [];
@@ -255,6 +258,7 @@ export default function App() {
           name: partName(base(), i, group, t('file.pageAbbr')),
           bytes: await buildPdf(group.map((k) => pages[k]), docs, {
             signal: job.signal,
+            flatten,
             onProgress: (f) => job.onProgress?.((i + f) / plan.length),
           }),
         });
@@ -397,6 +401,8 @@ export default function App() {
               onDelete={() => dispatch({ type: 'remove', ids: [...selected] })}
               onReverse={() => dispatch({ type: 'reverse' })}
               onSplit={() => setSplitOpen(true)}
+              flatten={flatten}
+              onFlatten={setFlatten}
               onSave={save}
               onPrint={print}
             />
@@ -457,6 +463,7 @@ export default function App() {
                 memory={tab.memory}
                 onMemory={(memory) => dispatchWs({ type: 'memory', id: tab.id, memory })}
                 onAnnotate={(id, annots, removed) => dispatch({ type: 'annotate', id, annots, removed })}
+                onFill={(id, fields) => dispatch({ type: 'fill', id, fields })}
               />
             ) : tab ? (
               <PageGrid

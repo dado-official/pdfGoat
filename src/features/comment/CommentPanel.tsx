@@ -86,7 +86,7 @@ export default function CommentPanel({ pages, fileComments, selectedId, onSelect
                   }}
                 >
                   <span className="comment-dot" style={{ background: a.color }} />
-                  <span>{t(`comment.kind.${a.kind}` as MessageKey)}</span>
+                  <span>{t(`comment.kind.${a.tag ?? a.kind}` as MessageKey)}</span>
                   <span className="comment-page">{t('comment.onPage', { number: e.page + 1 })}</span>
                 </button>
                 {selected ? (

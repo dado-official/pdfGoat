@@ -4,10 +4,11 @@ import { safeExternalUrl } from '../../core/outline';
 import { lineStyle, overlayTransform, type Box } from '../../core/textLayer';
 import type { PageRef } from '../../core/types';
 import { useI18n } from '../../i18n/context';
-import { getLinks, getText, renderPage, type PageLink, type SourceDoc, type TextLine } from '../../pdf/view';
+import { getFields, getLinks, getText, renderPage, type FormField, type PageLink, type SourceDoc, type TextLine } from '../../pdf/view';
+import FormLayer from '../form/FormLayer';
 import { useNearViewport } from '../../ui/useNearViewport';
 import AnnotLayer from '../comment/AnnotLayer';
-import type { Tool } from '../comment/tools';
+import { isDrawTool, type Picture, type Tool } from '../comment/tools';
 import type { Annot } from '../../core/annotations';
 import type { StampName } from '../comment/stamps';
 
@@ -32,13 +33,17 @@ interface Props {
   tool: Tool;
   color: string;
   stamp: { name: StampName; text: string };
+  dateText: string;
+  picture: Picture | null;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onAnnots: (page: PageRef, annots: Annot[]) => void;
   onPlaced: () => void;
+  onFill: (page: PageRef, fields: Record<number, string>) => void;
 }
 
 const NO_ANNOTS: Annot[] = [];
+const NO_VALUES: Record<number, string> = {};
 
 let measuring: CanvasRenderingContext2D | null = null;
 
@@ -54,7 +59,7 @@ function naturalWidth(text: string, size: number): number {
 const MAX_RENDER_WIDTH = 2400;
 
 /** One page of the reading view. It has its final size from the start and draws itself while it is near the screen. */
-function ReadPage({ page, doc, number, width, height, damaged, size, scale, hits, linkTarget, onGo, tool, color, stamp, selectedId, onSelect, onAnnots, onPlaced }: Props) {
+function ReadPage({ page, doc, number, width, height, damaged, size, scale, hits, linkTarget, onGo, tool, color, stamp, dateText, picture, selectedId, onSelect, onAnnots, onPlaced, onFill }: Props) {
   const { t } = useI18n();
   const root = useRef<HTMLDivElement>(null);
   const near = useNearViewport(root);
@@ -62,6 +67,8 @@ function ReadPage({ page, doc, number, width, height, damaged, size, scale, hits
   const [failed, setFailed] = useState(false);
   const [lines, setLines] = useState<TextLine[] | null>(null);
   const [links, setLinks] = useState<PageLink[]>([]);
+  // Null until the form fields are known: the page is drawn without them when it has any.
+  const [fieldList, setFieldList] = useState<FormField[] | null>(null);
   const current = useRef<string | null>(null);
   const renderWidth = Math.min(width, MAX_RENDER_WIDTH);
   // Comments of the file that were deleted are left out of the picture. A string, so that the
@@ -76,13 +83,13 @@ function ReadPage({ page, doc, number, width, height, damaged, size, scale, hits
   };
 
   useEffect(() => {
-    if (damaged) return;
+    if (damaged || fieldList === null) return;
     // A page far away gives its image back; it is drawn again when it comes close.
     if (!near) return show(null);
     let cancelled = false;
     // The delay saves drawing at every step while the zoom is being changed.
     const timer = setTimeout(() => {
-      renderPage(doc, page.srcIndex, { width: renderWidth, rotation: page.rotation, hidden: removed })
+      renderPage(doc, page.srcIndex, { width: renderWidth, rotation: page.rotation, hidden: removed, hideForms: fieldList.length > 0 })
         .then((url) => {
           if (cancelled) URL.revokeObjectURL(url);
           else show(url);
@@ -98,7 +105,7 @@ function ReadPage({ page, doc, number, width, height, damaged, size, scale, hits
     };
     // `show` only touches refs and state setters.
     // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [near, damaged, doc, page.srcIndex, page.rotation, renderWidth, removed]);
+  }, [near, damaged, doc, page.srcIndex, page.rotation, renderWidth, removed, fieldList]);
 
   // The text is only held while the page is near, like its image.
   useEffect(() => {
@@ -111,6 +118,9 @@ function ReadPage({ page, doc, number, width, height, damaged, size, scale, hits
     getText(doc, page.srcIndex)
       .then((l) => !cancelled && setLines(l))
       .catch(() => !cancelled && setLines(null));
+    getFields(doc, page.srcIndex)
+      .then((f) => !cancelled && setFieldList(f))
+      .catch(() => !cancelled && setFieldList([]));
     getLinks(doc, page.srcIndex)
       .then((l) => !cancelled && setLinks(l))
       .catch(() => !cancelled && setLinks([]));
@@ -191,6 +201,17 @@ function ReadPage({ page, doc, number, width, height, damaged, size, scale, hits
           })}
         </div>
       )}
+      {!problem && fieldList && (
+        <FormLayer
+          fields={fieldList}
+          values={page.fields ?? NO_VALUES}
+          size={size}
+          rotation={page.rotation}
+          scale={scale}
+          inactive={isDrawTool(tool)}
+          onChange={(fields) => onFill(page, fields)}
+        />
+      )}
       {!problem && (
         <AnnotLayer
           size={size}
@@ -200,6 +221,8 @@ function ReadPage({ page, doc, number, width, height, damaged, size, scale, hits
           tool={tool}
           color={color}
           stamp={stamp}
+          dateText={dateText}
+          picture={picture}
           selectedId={selectedId}
           onSelect={onSelect}
           onChange={(annots) => onAnnots(page, annots)}

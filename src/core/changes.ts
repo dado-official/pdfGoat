@@ -12,7 +12,9 @@ export type Change =
   | { type: 'moveTo'; ids: string[]; targetId: string; side: 'before' | 'after' }
   | { type: 'reverse' }
   /** Replaces the comments of one page: new ones, and which of the file's own were deleted. */
-  | { type: 'annotate'; id: string; annots: Annot[]; removed: number[] };
+  | { type: 'annotate'; id: string; annots: Annot[]; removed: number[] }
+  /** Replaces the form values of one page. */
+  | { type: 'fill'; id: string; fields: Record<number, string> };
 
 export const normalizeRotation = (deg: number) => ((deg % 360) + 360) % 360;
 
@@ -69,6 +71,17 @@ export function applyChange(pages: PageRef[], change: Change): PageRef[] {
       if (same(old.annots, change.annots) && same(old.removed, change.removed)) return pages;
       const next = [...pages];
       next[i] = { ...old, annots: change.annots, removed: change.removed };
+      return next;
+    }
+
+    case 'fill': {
+      const i = pages.findIndex((p) => p.id === change.id);
+      if (i < 0) return pages;
+      const old = pages[i].fields ?? {};
+      const keys = Object.keys(change.fields);
+      if (keys.length === Object.keys(old).length && keys.every((k) => old[Number(k)] === change.fields[Number(k)])) return pages;
+      const next = [...pages];
+      next[i] = { ...pages[i], fields: keys.length ? change.fields : undefined };
       return next;
     }
   }

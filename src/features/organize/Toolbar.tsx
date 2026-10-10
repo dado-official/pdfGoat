@@ -23,6 +23,8 @@ interface Props {
   onReverse: () => void;
   onSplit: () => void;
   onPrint: () => void;
+  flatten: boolean;
+  onFlatten: (on: boolean) => void;
   onSave: () => void;
 }
 
@@ -56,6 +58,10 @@ export default function Toolbar(p: Props) {
         <button onClick={p.onSplit} disabled={!p.pageCount}>{t('toolbar.split')}</button>
         <button data-testid="merge" onClick={p.onMerge} disabled={p.tabCount < 2} title={p.tabCount < 2 ? t('toolbar.merge.title') : undefined}>{t('toolbar.merge')}</button>
         <button onClick={p.onPrint} disabled={!p.pageCount || p.busy} title={t('toolbar.print.title')}>{t('toolbar.print')}</button>
+        <label className="flatten" title={t('toolbar.flatten.title')}>
+          <input type="checkbox" checked={p.flatten} onChange={(e) => p.onFlatten(e.target.checked)} />
+          {t('toolbar.flatten')}
+        </label>
         <button className="primary" onClick={p.onSave} disabled={!p.pageCount || p.busy}>
           {t(p.docCount > 1 ? 'toolbar.saveMerged' : 'toolbar.save')}
         </button>

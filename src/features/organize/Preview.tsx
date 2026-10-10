@@ -29,7 +29,7 @@ export default function Preview({ doc, page, number, total, onClose, onStep }: P
     let cancelled = false;
     let made: string | null = null;
     const width = Math.min(window.innerWidth - 64, 1000);
-    renderPage(doc, page.srcIndex, { width, rotation: page.rotation, hidden: page.removed, annots: page.annots })
+    renderPage(doc, page.srcIndex, { width, rotation: page.rotation, hidden: page.removed, annots: page.annots, fields: page.fields })
       .then((u) => {
         made = u;
         if (cancelled) URL.revokeObjectURL(u);
@@ -43,7 +43,7 @@ export default function Preview({ doc, page, number, total, onClose, onStep }: P
       cancelled = true;
       if (made) URL.revokeObjectURL(made);
     };
-  }, [doc, page.srcIndex, page.rotation, page.removed, page.annots, key]);
+  }, [doc, page.srcIndex, page.rotation, page.removed, page.annots, page.fields, key]);
 
   return (
     <dialog

@@ -193,3 +193,36 @@ export async function annotationsOf(bytes: Uint8Array): Promise<{ type: string; 
       .filter((a) => a.type !== 'Popup');
   });
 }
+
+/** A one-page form: text field "name", check box "agree", radio group "colour" (red, green, blue) and drop-down "country". */
+export async function makeFormPdf(): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  const page = doc.addPage([595, 842]);
+  const form = doc.getForm();
+  const text = form.createTextField('name');
+  text.addToPage(page, { x: 60, y: 740, width: 200, height: 22 });
+  const agree = form.createCheckBox('agree');
+  agree.addToPage(page, { x: 60, y: 690, width: 18, height: 18 });
+  const colour = form.createRadioGroup('colour');
+  ['red', 'green', 'blue'].forEach((option, i) => colour.addOptionToPage(option, page, { x: 60 + i * 40, y: 640, width: 18, height: 18 }));
+  const country = form.createDropdown('country');
+  country.addOptions(['Deutschland', 'Österreich', 'Schweiz']);
+  country.addToPage(page, { x: 60, y: 590, width: 200, height: 22 });
+  return doc.save();
+}
+
+/** Current value of every field of a form PDF, read by pdf-lib. */
+export async function formValues(bytes: Uint8Array) {
+  const form = (await PDFDocument.load(bytes)).getForm();
+  return {
+    name: form.getTextField('name').getText() ?? '',
+    agree: form.getCheckBox('agree').isChecked(),
+    colour: form.getRadioGroup('colour').getSelected() ?? null,
+    country: form.getDropdown('country').getSelected()[0] ?? null,
+    fields: form.getFields().length,
+  };
+}
+
+export async function fieldCount(bytes: Uint8Array) {
+  return (await PDFDocument.load(bytes)).getForm().getFields().length;
+}
