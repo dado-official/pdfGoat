@@ -256,7 +256,7 @@ export default function App() {
           <footer>
             {t('footer.intro')}{' '}
             <a href="https://mozilla.github.io/pdf.js/" target="_blank" rel="noopener noreferrer">PDF.js</a> (Apache 2.0) {t('footer.and')}{' '}
-            <a href="https://pdf-lib.js.org/" target="_blank" rel="noopener noreferrer">pdf-lib</a> (MIT).
+            <a href="https://mupdf.com/" target="_blank" rel="noopener noreferrer">MuPDF</a> (AGPL).
           </footer>
         </div>
       </div>

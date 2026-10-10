@@ -70,7 +70,7 @@ export async function openPdf(file: File): Promise<OpenedPdf> {
   }
 
   // Files with only an owner password open without asking, but are still encrypted.
-  // pdf-lib cannot decrypt them, so saving would produce broken pages.
+  // They are refused until the password dialog exists; saving refuses them as well.
   if (await isEncrypted(view)) {
     await view.loadingTask.destroy();
     throw new AppError('encrypted', { name });

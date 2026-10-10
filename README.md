@@ -3,7 +3,7 @@
 **Eats your PDFs. Never your data.**
 
 Kostenloser PDF-Editor, der komplett im Browser läuft. Dateien werden nie hochgeladen:
-PDF.js zeigt die Seiten an, pdf-lib schreibt die neue PDF, alles lokal auf deinem Gerät.
+PDF.js zeigt die Seiten an, MuPDF schreibt die neue PDF, alles lokal auf deinem Gerät.
 
 ## Was PDFgoat kann
 
@@ -54,17 +54,23 @@ Die Seite ist rein statisch (`dist/`) und wird über **Cloudflare Pages** veröf
 ## Technik
 
 React 19 + TypeScript + Vite, [PDF.js](https://mozilla.github.io/pdf.js/) (Apache 2.0, Legacy-Build für ältere Browser),
-[pdf-lib](https://pdf-lib.js.org/) (MIT), [fflate](https://github.com/101arrowz/fflate) (MIT) für ZIP.
-pdf-lib und fflate werden erst beim Speichern nachgeladen.
+[MuPDF.js](https://mupdf.com/) (AGPL, als WebAssembly), [fflate](https://github.com/101arrowz/fflate) (MIT) für ZIP.
+MuPDF und fflate werden erst beim Speichern nachgeladen. pdf-lib (MIT) dient nur noch in den Tests als zweiter,
+unabhängiger Leser, der die gespeicherten Dateien prüft.
 
 - `src/core/`: reine Logik ohne React und DOM (Seitenbereiche, Größenlimits, Fehlercodes, Typen)
 - `src/state/`: Seitenliste, Auswahl, Rückgängig und Wiederholen als Reducer
-- `src/pdf/`: Anbindung an PDF.js (öffnen, rendern) und pdf-lib (neue PDF schreiben)
+- `src/pdf/`: Anbindung an PDF.js (öffnen, rendern) und MuPDF (neue PDF schreiben, Formulare, Links und Lesezeichen mitnehmen)
 - `src/features/`: Oberfläche je Funktion (`open`, `organize`, `merge-split`)
 - `src/i18n/`: Texte auf Deutsch und Englisch, `src/ui/`: gemeinsame Bausteine
 - Unit-Tests liegen neben dem Modul (`*.test.ts`), Browser-Tests in `tests/e2e/`
 
+## Lizenz
+
+PDFgoat ist freie Software unter der [GNU AGPL, Version 3 oder später](LICENSE). Wer eine veränderte
+Fassung als Website anbietet, muss deren Quelltext ebenfalls offenlegen.
+
 ## Grenzen
 
 - Passwortgeschützte und verschlüsselte PDFs werden noch nicht unterstützt und mit einer Meldung abgelehnt.
-- Formularfelder und Lesezeichen gehen beim Neuaufbau der PDF teilweise verloren.
+- Beim Zusammenfügen mehrerer Dateien werden gleichnamige Formularfelder umbenannt (`name`, `name_2`).

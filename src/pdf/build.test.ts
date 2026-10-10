@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { PDFDict, PDFDocument, PDFName } from 'pdf-lib';
 import { describe, expect, it } from 'vitest';
 import { unzipSync } from 'fflate';
-import { describePdf, makeEncryptedPdf, makeHalfBrokenPdf, makePdf } from '../../tests/fixtures';
+import { describePdf, describeRichPdf, makeEncryptedPdf, makeHalfBrokenPdf, makePdf, makeRichPdf } from '../../tests/fixtures';
 import { AppError } from '../core/errors';
 import type { PageRef } from '../core/types';
 import { buildPdf, zip, type BuildSource } from './build';
@@ -123,6 +123,105 @@ describe('buildPdf', () => {
       code: 'encrypted',
       params: { name: 'geheim.pdf' },
     });
+  });
+});
+
+describe('buildPdf keeps what belongs to the pages', () => {
+  const rich = async () => ({
+    a: source(await makeRichPdf('A', 500), 'a.pdf'),
+    b: source(await makeRichPdf('B', 600), 'b.pdf'),
+  });
+
+  it('reads the fixture as it was written', async () => {
+    expect(await describeRichPdf(await makeRichPdf('A', 500))).toEqual({
+      pages: [
+        { width: 500, links: [2, 'https://example.org/'], notes: [], widgets: ['name'] },
+        { width: 501, links: [], notes: ['Notiz A äöü'], widgets: ['ok'] },
+        { width: 502, links: [], notes: [], widgets: [] },
+      ],
+      outline: ['A Eins > 0', 'A Drei > 2', '  A Zwei innen > 1'],
+      fields: ['name=Daniel-A', 'ok=true'],
+      title: 'Titel A',
+      producer: expect.any(String),
+      pageObjects: 3,
+    });
+  });
+
+  it('moves bookmarks, links, notes and form fields with their pages', async () => {
+    const out = await describeRichPdf(await buildPdf([ref('a', 2), ref('a', 0), ref('a', 1)], await rich()));
+    expect(out).toEqual({
+      pages: [
+        { width: 502, links: [], notes: [], widgets: [] },
+        { width: 500, links: [0, 'https://example.org/'], notes: [], widgets: ['name'] },
+        { width: 501, links: [], notes: ['Notiz A äöü'], widgets: ['ok'] },
+      ],
+      outline: ['A Eins > 1', 'A Drei > 0', '  A Zwei innen > 2'],
+      fields: ['name=Daniel-A', 'ok=true'],
+      title: 'Titel A',
+      producer: 'PDFgoat',
+      pageObjects: 3,
+    });
+  });
+
+  it('removes a deleted page from the file, with its field, note and bookmark', async () => {
+    // The file opens at page 2, which is the page that gets deleted.
+    const out = await describeRichPdf(await buildPdf([ref('a', 0), ref('a', 2)], await rich()));
+    expect(out.pages.map((p) => p.width)).toEqual([500, 502]);
+    expect(out.pageObjects).toBe(2);
+    expect(out.fields).toEqual(['name=Daniel-A']);
+    expect(out.outline).toEqual(['A Eins > 0', 'A Drei > 1']);
+    expect(out.pages[0].links).toEqual([1, 'https://example.org/']);
+  });
+
+  it('drops a link whose target page was deleted', async () => {
+    const out = await describeRichPdf(await buildPdf([ref('a', 0), ref('a', 1)], await rich()));
+    expect(out.pages[0].links).toEqual(['https://example.org/']);
+    // The bookmark to the deleted page stays as a heading, because the one below it still has its page.
+    expect(out.outline).toEqual(['A Eins > 0', 'A Drei > undefined', '  A Zwei innen > 1']);
+    expect(out.pageObjects).toBe(2);
+  });
+
+  it('merges files with their bookmarks, links, notes and form fields', async () => {
+    const order = [ref('a', 0), ref('b', 0), ref('a', 1), ref('b', 1), ref('a', 2), ref('b', 2)];
+    const out = await describeRichPdf(await buildPdf(order, await rich()));
+    expect(out).toEqual({
+      pages: [
+        { width: 500, links: [4, 'https://example.org/'], notes: [], widgets: ['name'] },
+        { width: 600, links: [5, 'https://example.org/'], notes: [], widgets: ['name_2'] },
+        { width: 501, links: [], notes: ['Notiz A äöü'], widgets: ['ok'] },
+        { width: 601, links: [], notes: ['Notiz B äöü'], widgets: ['ok_2'] },
+        { width: 502, links: [], notes: [], widgets: [] },
+        { width: 602, links: [], notes: [], widgets: [] },
+      ],
+      outline: ['a > 0', '  A Eins > 0', '  A Drei > 4', '    A Zwei innen > 2', 'b > 1', '  B Eins > 1', '  B Drei > 5', '    B Zwei innen > 3'],
+      fields: ['name=Daniel-A', 'ok=true', 'name_2=Daniel-B', 'ok_2=true'],
+      title: 'Titel A',
+      producer: 'PDFgoat',
+      pageObjects: 6,
+    });
+  });
+
+  it('takes only the chosen pages of a merged file along', async () => {
+    const out = await describeRichPdf(await buildPdf([ref('b', 1), ref('a', 0)], await rich()));
+    expect(out.pages).toEqual([
+      { width: 601, links: [], notes: ['Notiz B äöü'], widgets: ['ok'] },
+      { width: 500, links: ['https://example.org/'], notes: [], widgets: ['name'] },
+    ]);
+    expect(out.fields).toEqual(['ok=true', 'name=Daniel-A']);
+    expect(out.outline).toEqual(['b > 0', 'a > 1', '  A Eins > 1']);
+    expect(out.pageObjects).toBe(2);
+  });
+
+  it('gives the second copy of a page its own form field', async () => {
+    const out = await describeRichPdf(await buildPdf([ref('a', 0), ref('a', 0)], await rich()));
+    expect(out.pages.map((p) => p.widgets)).toEqual([['name'], ['name_2']]);
+    expect(out.fields).toEqual(['name=Daniel-A', 'name_2=Daniel-A']);
+    expect(out.outline).toEqual(['A Eins > 0']);
+  });
+
+  it('adds no bookmarks when the merged files have none', async () => {
+    const src = await sources();
+    expect((await describeRichPdf(await buildPdf([ref('a', 0), ref('b', 0)], src))).outline).toEqual([]);
   });
 });
 
