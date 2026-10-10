@@ -80,7 +80,6 @@ export async function openPdf(file: File): Promise<OpenedPdf> {
     id: uid('d'),
     name,
     view,
-    pageCount: view.numPages,
     byteLength: data.byteLength,
     read: keepBytes ? async () => data : () => readFile(file),
   };

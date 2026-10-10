@@ -5,6 +5,7 @@ export type ErrorCode =
   | 'notPdf'
   | 'tooLarge'
   | 'fileUnreadable'
+  | 'pageMissing'
   | 'renderFailed'
   | 'rangeInvalid'
   | 'rangeOutOfBounds'

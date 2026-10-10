@@ -1,5 +1,5 @@
 // Test PDFs built with pdf-lib. Every page gets a unique width, so it can be recognised in any output.
-import { PDFDocument, PDFHexString, StandardFonts, degrees } from 'pdf-lib';
+import { PDFArray, PDFDocument, PDFHexString, PDFName, PDFRef, StandardFonts, degrees } from 'pdf-lib';
 
 export interface FixturePage {
   width: number;
@@ -38,4 +38,11 @@ export async function makeEncryptedPdf(): Promise<Uint8Array> {
     doc.context.obj({ Filter: 'Standard', V: 1, R: 2, O: key, U: key, P: -44 }),
   );
   return doc.save({ useObjectStreams: false });
+}
+
+/** Two pages (501 and 502 wide), but one entry of the page list points at an object that does not exist. */
+export async function makeHalfBrokenPdf(brokenIndex = 1): Promise<Uint8Array> {
+  const doc = await PDFDocument.load(await makePdf([{ width: 501 }, { width: 502 }]));
+  doc.catalog.Pages().lookup(PDFName.of('Kids'), PDFArray).set(brokenIndex, PDFRef.of(9999));
+  return doc.save();
 }

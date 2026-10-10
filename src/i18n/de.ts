@@ -98,6 +98,8 @@ export const de = {
   'error.tooLarge': '„{name}“ ist mit {size} MB zu groß. Möglich sind höchstens {max} MB.',
   'error.fileUnreadable':
     '„{name}“ kann nicht mehr gelesen werden. Wurde die Datei verschoben oder geändert? Bitte öffne sie erneut.',
+  'error.pageMissing':
+    'Seite {number} von „{name}“ ist beschädigt und kann nicht gespeichert werden. Lösche sie und speichere erneut.',
   'error.renderFailed': 'Seite konnte nicht gerendert werden.',
   'error.rangeInvalid': '„{part}“ ist kein gültiger Bereich.',
   'error.rangeOutOfBounds': '„{part}“ liegt außerhalb von 1–{count}.',

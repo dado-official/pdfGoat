@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { PDFDict, PDFDocument, PDFName } from 'pdf-lib';
 import { describe, expect, it } from 'vitest';
 import { unzipSync } from 'fflate';
-import { describePdf, makeEncryptedPdf, makePdf } from '../../tests/fixtures';
+import { describePdf, makeEncryptedPdf, makeHalfBrokenPdf, makePdf } from '../../tests/fixtures';
 import { AppError } from '../core/errors';
 import type { PageRef } from '../core/types';
 import { buildPdf, zip, type BuildSource } from './build';
@@ -57,14 +57,19 @@ describe('buildPdf', () => {
     expect(src.b.reads).toBe(1);
   });
 
-  it('refuses a source whose page count no longer matches the opened file', async () => {
-    const replaced = { ...source(await makePdf([{ width: 300 }]), 'neu.pdf'), pageCount: 3 };
-    await expect(buildPdf([ref('a', 0)], { a: replaced })).rejects.toMatchObject({
-      code: 'fileUnreadable',
-      params: { name: 'neu.pdf' },
+  it('saves the good pages of a file with a damaged page and names the damaged one', async () => {
+    const src = { h: source(await makeHalfBrokenPdf(), 'halb.pdf') };
+    expect((await describePdf(await buildPdf([ref('h', 0)], src))).map((p) => p.width)).toEqual([501]);
+    await expect(buildPdf([ref('h', 0), ref('h', 1)], src)).rejects.toMatchObject({
+      code: 'pageMissing',
+      params: { name: 'halb.pdf', number: 2 },
     });
-    const same = { ...source(await makePdf([{ width: 300 }])), pageCount: 1 };
-    expect(await describePdf(await buildPdf([ref('a', 0)], { a: same }))).toHaveLength(1);
+  });
+
+  it('still picks the right page when the damaged one comes first', async () => {
+    const src = { h: source(await makeHalfBrokenPdf(0), 'halb.pdf') };
+    expect((await describePdf(await buildPdf([ref('h', 1)], src))).map((p) => p.width)).toEqual([502]);
+    await expect(buildPdf([ref('h', 0)], src)).rejects.toMatchObject({ code: 'pageMissing', params: { number: 1 } });
   });
 
   it('refuses a source whose size no longer matches the opened file', async () => {

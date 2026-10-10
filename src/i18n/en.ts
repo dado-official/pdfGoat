@@ -98,6 +98,7 @@ export const en: Record<MessageKey, string> = {
   'error.tooLarge': '“{name}” is too large at {size} MB. The maximum is {max} MB.',
   'error.fileUnreadable':
     '“{name}” can no longer be read. Was the file moved or changed? Please open it again.',
+  'error.pageMissing': 'Page {number} of “{name}” is damaged and cannot be saved. Delete it and save again.',
   'error.renderFailed': 'The page could not be rendered.',
   'error.rangeInvalid': '“{part}” is not a valid range.',
   'error.rangeOutOfBounds': '“{part}” is outside 1–{count}.',

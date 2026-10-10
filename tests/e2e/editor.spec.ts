@@ -1,7 +1,7 @@
 import { expect, test as base, type Download, type Page } from '@playwright/test';
 import { unzipSync } from 'fflate';
 import { readFile, rm, writeFile } from 'node:fs/promises';
-import { describePdf, makeEncryptedPdf, makePdf } from '../fixtures';
+import { describePdf, makeEncryptedPdf, makeHalfBrokenPdf, makePdf } from '../fixtures';
 
 const pdfFile = (name: string, bytes: Uint8Array) => ({ name, mimeType: 'application/pdf', buffer: Buffer.from(bytes) });
 
@@ -245,6 +245,23 @@ test('shows a PDF with an embedded font and loads PDF.js only when a file is ope
   await page.getByTestId('file-input').setInputFiles(pdfFile('schrift.pdf', bytes));
   await expect(card(page, 0).locator('img')).toBeVisible();
   expect((await scripts()).some((name) => name.includes('pdf.worker'))).toBe(true);
+});
+
+test('a damaged page shows a placeholder, and the good pages can still be saved', async ({ page }) => {
+  // Not the `app` fixture: the browser reports the damaged page in its console, which is expected here.
+  await page.goto('/');
+  await page.getByTestId('file-input').setInputFiles(pdfFile('halb.pdf', await makeHalfBrokenPdf()));
+  await expect(cards(page)).toHaveCount(2);
+  await expect(card(page, 0).locator('img')).toBeVisible();
+  await expect(card(page, 1)).toContainText('Keine Vorschau');
+
+  await page.getByRole('button', { name: 'PDF speichern' }).click();
+  await expect(page.getByRole('alert')).toContainText('Seite 2 von „halb.pdf“ ist beschädigt');
+
+  await card(page, 1).getByLabel('Seite löschen').click();
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'PDF speichern' }).click();
+  expect(await widthsAndRotations(await downloadBytes(await download))).toEqual(['501@0']);
 });
 
 test.describe('files that cannot be opened', () => {

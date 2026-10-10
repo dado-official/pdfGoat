@@ -1,5 +1,5 @@
 // Writes new PDFs with pdf-lib. No DOM and no PDF.js here, so it runs in Node tests too.
-import type { PDFDocument } from 'pdf-lib';
+import { PDFArray, PDFDict, PDFName, type PDFDocument, type PDFObject } from 'pdf-lib';
 import { AppError } from '../core/errors';
 import type { PageRef } from '../core/types';
 
@@ -9,9 +9,8 @@ export interface BuildSource {
   name?: string;
   /** Returns the file's bytes. Called once, when the file is first needed for saving. */
   read: () => Promise<Uint8Array>;
-  /** Size and number of pages seen when the file was opened, to notice a file that changed since. */
+  /** Size seen when the file was opened, to notice a file that changed since. */
   byteLength?: number;
-  pageCount?: number;
 }
 
 // pdf-lib and fflate are only needed when saving, so they load on demand.
@@ -36,14 +35,38 @@ async function parse(src: BuildSource): Promise<PDFDocument> {
   const { PDFDocument } = await loadPdfLib();
   const bytes = await src.read();
   // A file that was replaced on disk after opening must never be exported as if it were the original.
-  const changed = () => new AppError('fileUnreadable', { name: src.name ?? '' });
-  if (src.byteLength !== undefined && bytes.byteLength !== src.byteLength) throw changed();
+  if (src.byteLength !== undefined && bytes.byteLength !== src.byteLength) {
+    throw new AppError('fileUnreadable', { name: src.name ?? '' });
+  }
   const doc = await PDFDocument.load(bytes, { ignoreEncryption: true });
   // Encrypted files must not be rebuilt: their streams would be copied without decrypting
   // them, which produces broken pages without any error.
   if (doc.isEncrypted) throw new AppError('encrypted', { name: src.name ?? '' });
-  if (src.pageCount !== undefined && doc.getPageCount() !== src.pageCount) throw changed();
   return doc;
+}
+
+/**
+ * Maps page positions as PDF.js counts them to page indices in pdf-lib. They differ when a
+ * damaged file lists a page that does not exist: PDF.js keeps the position, pdf-lib skips it.
+ */
+function readablePages(doc: PDFDocument): Map<number, number> {
+  const readable = new Map<number, number>();
+  let position = 0;
+  const walk = (node: PDFObject | undefined) => {
+    if (!(node instanceof PDFDict)) {
+      // A reference to nothing still counts as a page position.
+      position++;
+      return;
+    }
+    const kids = node.lookup(PDFName.of('Kids'));
+    if (kids instanceof PDFArray) {
+      for (let i = 0; i < kids.size(); i++) walk(kids.lookup(i));
+    } else {
+      readable.set(position++, readable.size);
+    }
+  };
+  walk(doc.catalog.lookup(PDFName.of('Pages')));
+  return readable;
 }
 
 /** Builds a new PDF from a list of pages (possibly from several documents). */
@@ -65,7 +88,14 @@ export async function buildPdf(pages: PageRef[], sources: Record<string, BuildSo
   for (const [docId, list] of bySource) {
     const source = sources[docId];
     if (!source) throw new AppError('sourceMissing', { id: docId });
-    const result = await out.copyPages(await libDoc(source), list.map((p) => p.srcIndex));
+    const lib = await libDoc(source);
+    // A damaged file can list pages that do not exist. Name the page instead of failing obscurely;
+    // the user can delete it and save the rest.
+    const missing = (p: PageRef) => new AppError('pageMissing', { name: source.name ?? '', number: p.srcIndex + 1 });
+    const available = readablePages(lib);
+    const lost = list.find((p) => !available.has(p.srcIndex));
+    if (lost) throw missing(lost);
+    const result = await out.copyPages(lib, list.map((p) => available.get(p.srcIndex)!));
     list.forEach((p, i) => copied.set(p.id, result[i]));
   }
 

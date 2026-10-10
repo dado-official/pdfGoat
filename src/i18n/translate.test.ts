@@ -23,6 +23,7 @@ describe('messages', () => {
       notPdf: true,
       tooLarge: true,
       fileUnreadable: true,
+      pageMissing: true,
       renderFailed: true,
       rangeInvalid: true,
       rangeOutOfBounds: true,

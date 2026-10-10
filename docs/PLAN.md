@@ -173,7 +173,7 @@ Reihenfolge nach Aufwand:
 
 - **Texte als `de.ts`/`en.ts` statt JSON:** TypeScript prüft so beim Build, dass jeder Schlüssel existiert und beide Sprachen vollständig sind.
 - **CSP in der Seite und in `dist/_headers`, beides aus `vite.config.ts` erzeugt:** Die Policy gilt damit auf jedem Hoster und in den Browser-Tests, und es gibt nur eine Quelle. Eine Datei `public/_headers` gibt es deshalb nicht.
-- **Dateien unter 100 MB bleiben im Speicher,** damit das Speichern auch dann klappt, wenn die Datei auf der Festplatte inzwischen verschoben, überschrieben oder gelöscht wurde. Nur größere Dateien werden beim Speichern neu gelesen. Passt die Seitenzahl dann nicht mehr zur geöffneten Datei, bricht der Export mit einer Meldung ab.
+- **Dateien unter 100 MB bleiben im Speicher,** damit das Speichern auch dann klappt, wenn die Datei auf der Festplatte inzwischen verschoben, überschrieben oder gelöscht wurde. Nur größere Dateien werden beim Speichern neu gelesen. Passt die Dateigröße dann nicht mehr zur geöffneten Datei, bricht der Export mit einer Meldung ab.
 - **Verschlüsselte PDFs werden abgelehnt,** auch solche, die sich ohne Passwort öffnen lassen. pdf-lib kann sie nicht entschlüsseln und würde leere Seiten speichern.
 - **Größenlimits:** Warnung ab 100 MB, Ablehnung über 500 MB (`src/core/limits.ts`).
 - **Test-PDFs** werden in `tests/fixtures.ts` im Code erzeugt, die echte verschlüsselte Datei liegt in `tests/files/`.
