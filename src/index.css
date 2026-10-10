@@ -571,3 +571,28 @@ dialog::backdrop { background: rgb(28 33 38 / 0.55); }
   box-shadow: var(--paper-shadow);
 }
 .read-page img { width: 100%; height: 100%; display: block; user-select: none; }
+
+/* Text layer and search highlights, built in page points and scaled as a whole */
+.overlay { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.text-layer { position: absolute; inset: 0; font-family: sans-serif; line-height: 1; }
+.text-layer span {
+  position: absolute;
+  white-space: pre;
+  color: transparent;
+  cursor: text;
+}
+.text-layer ::selection, .text-layer span::selection { background: rgb(210 232 74 / 0.55); color: transparent; }
+.hit { position: absolute; background: rgb(255 214 0 / 0.38); mix-blend-mode: multiply; pointer-events: none; }
+.hit.active { background: rgb(255 140 0 / 0.5); outline: 2px solid rgb(255 140 0); }
+.reader-bar .search { display: flex; align-items: center; gap: 6px; flex: 1; justify-content: center; min-width: 220px; }
+.reader-bar .search input { flex: 0 1 240px; }
+.reader-bar .search button {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--edge);
+  border-radius: 2px;
+  background: var(--paper);
+  cursor: pointer;
+}
+.reader-bar .search button:disabled { opacity: 0.4; cursor: default; }
+.search-state { min-width: 6.5em; color: var(--dust); font-size: 13px; font-variant-numeric: tabular-nums; }

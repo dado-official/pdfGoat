@@ -7,7 +7,27 @@ import { AppError, type ErrorCode, type ErrorParams } from '../core/errors';
 export type ViewRequest =
   | { id: number; type: 'open'; docId: string; name: string; bytes: Uint8Array; password?: string }
   | { id: number; type: 'render'; docId: string; pageIndex: number; width: number; rotation: number }
+  | { id: number; type: 'text'; docId: string; pageIndex: number }
+  | { id: number; type: 'search'; docId: string; pageIndex: number; needle: string }
   | { id: number; type: 'close'; docId: string };
+
+/** One line of text on a page, in page points (y points down, as drawn). */
+export interface TextLine {
+  text: string;
+  /** Start of the baseline. */
+  x: number;
+  y: number;
+  /** Direction the text runs in, a unit vector. */
+  dx: number;
+  dy: number;
+  /** Font size in points. */
+  size: number;
+  /** How far the line runs along its direction. */
+  length: number;
+}
+
+/** A box on the page: left, top, right, bottom in points. */
+export type Box = [number, number, number, number];
 
 export type ViewResponse =
   | { id: number; ok: true; result: unknown }
@@ -91,6 +111,63 @@ function render(engine: Engine, { docId, pageIndex, width, rotation }: Extract<V
   }
 }
 
+function pageText({ docId, pageIndex }: Extract<ViewRequest, { type: 'text' }>): TextLine[] {
+  const doc = docs.get(docId);
+  if (!doc || !hasPage(doc, pageIndex)) throw new AppError('renderFailed');
+  const page = doc.loadPage(pageIndex);
+  const lines: TextLine[] = [];
+  try {
+    const text = page.toStructuredText('');
+    try {
+      let line: (TextLine & { started: boolean }) | null = null;
+      text.walk({
+        beginLine(_bbox, _wmode, [dx, dy]) {
+          line = { text: '', x: 0, y: 0, dx, dy, size: 0, length: 0, started: false };
+        },
+        onChar(c, [x, y], _font, size, quad) {
+          if (!line) return;
+          if (!line.started) Object.assign(line, { x, y, size, started: true });
+          line.text += c;
+          // The line ends where its farthest character ends, measured along its direction.
+          for (let i = 0; i < 8; i += 2) {
+            line.length = Math.max(line.length, (quad[i] - line.x) * line.dx + (quad[i + 1] - line.y) * line.dy);
+          }
+        },
+        endLine() {
+          if (line?.started && line.text.trim() && line.size > 0) lines.push(line);
+          line = null;
+        },
+      });
+    } finally {
+      text.destroy();
+    }
+  } finally {
+    page.destroy();
+  }
+  return lines;
+}
+
+/** Every match of `needle` on a page as boxes, one group per match (a match can span lines). */
+function searchPage({ docId, pageIndex, needle }: Extract<ViewRequest, { type: 'search' }>): Box[][] {
+  const doc = docs.get(docId);
+  if (!doc || !hasPage(doc, pageIndex)) return [];
+  const page = doc.loadPage(pageIndex);
+  try {
+    return page.search(needle, 'ignore-case,ignore-diacritics').slice(0, MAX_HITS_PER_PAGE).map((hit) =>
+      hit.map((q) => [
+        Math.min(q[0], q[2], q[4], q[6]),
+        Math.min(q[1], q[3], q[5], q[7]),
+        Math.max(q[0], q[2], q[4], q[6]),
+        Math.max(q[1], q[3], q[5], q[7]),
+      ] as Box),
+    );
+  } finally {
+    page.destroy();
+  }
+}
+
+const MAX_HITS_PER_PAGE = 500;
+
 const post = (message: ViewResponse, transfer: Transferable[] = []) => self.postMessage(message, { transfer });
 
 self.onmessage = async ({ data }: MessageEvent<ViewRequest>) => {
@@ -103,6 +180,10 @@ self.onmessage = async ({ data }: MessageEvent<ViewRequest>) => {
         const png = render(engine, data);
         return post({ id: data.id, ok: true, result: png }, [png.buffer]);
       }
+      case 'text':
+        return post({ id: data.id, ok: true, result: pageText(data) });
+      case 'search':
+        return post({ id: data.id, ok: true, result: searchPage(data) });
       case 'close':
         docs.get(data.docId)?.destroy();
         docs.delete(data.docId);

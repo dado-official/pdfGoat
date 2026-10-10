@@ -293,6 +293,62 @@ test.describe('reading view', () => {
     await expect(page.locator('.read-page[data-page="4"] img')).toBeVisible();
   });
 
+  test('puts selectable text over the page', async ({ app: page }) => {
+    await openFixtures(page);
+    await read(page);
+    const line = page.locator('.read-page[data-page="1"] .text-layer span');
+    await expect(line).toHaveText('A1');
+    await line.click({ clickCount: 3 });
+    expect(await page.evaluate(() => window.getSelection()?.toString().trim())).toBe('A1');
+  });
+
+  test('finds text, counts the matches and jumps to them', async ({ app: page }) => {
+    await openFixtures(page);
+    await read(page);
+    const search = page.getByRole('searchbox', { name: 'Im Dokument suchen' });
+    await search.fill('a');
+    await expect(page.locator('.search-state')).toHaveText('1 von 3');
+    await search.press('Enter');
+    await expect(page.locator('.search-state')).toHaveText('2 von 3');
+    await expect(pageField(page)).toHaveValue('2');
+    await expect(page.locator('.hit.active')).toBeVisible();
+    await search.press('Shift+Enter');
+    await search.press('Shift+Enter');
+    await expect(page.locator('.search-state')).toHaveText('3 von 3');
+    await expect(pageField(page)).toHaveValue('3');
+
+    await search.fill('a3');
+    await expect(page.locator('.search-state')).toHaveText('1 von 1');
+    await expect(pageField(page)).toHaveValue('3');
+    await search.fill('gibtsnicht');
+    await expect(page.locator('.search-state')).toHaveText('Nichts gefunden');
+    await expect(page.locator('.hit')).toHaveCount(0);
+  });
+
+  test('Ctrl+F searches the document instead of the browser', async ({ app: page }) => {
+    await openFixtures(page);
+    await read(page);
+    await scroller(page).focus();
+    await page.keyboard.press('Control+f');
+    await expect(page.getByRole('searchbox', { name: 'Im Dokument suchen' })).toBeFocused();
+  });
+
+  test('keeps highlights in place on a rotated page', async ({ app: page }) => {
+    await openFixtures(page);
+    await card(page, 0).getByRole('button', { name: /Seite 1 auswählen/ }).click();
+    await page.getByRole('button', { name: /Rechts drehen/ }).click();
+    await read(page);
+    await page.getByRole('searchbox', { name: 'Im Dokument suchen' }).fill('A1');
+    const hit = page.locator('.read-page[data-page="1"] .hit.active');
+    await expect(hit).toBeVisible();
+    const pageBox = (await page.locator('.read-page[data-page="1"]').boundingBox())!;
+    const hitBox = (await hit.boundingBox())!;
+    expect(hitBox.x).toBeGreaterThanOrEqual(pageBox.x - 1);
+    expect(hitBox.x + hitBox.width).toBeLessThanOrEqual(pageBox.x + pageBox.width + 1);
+    expect(hitBox.y).toBeGreaterThanOrEqual(pageBox.y - 1);
+    expect(hitBox.y + hitBox.height).toBeLessThanOrEqual(pageBox.y + pageBox.height + 1);
+  });
+
   test('shows a rotated page turned', async ({ app: page }) => {
     await openFixtures(page);
     await card(page, 0).getByRole('button', { name: /Seite 1 auswählen/ }).click();

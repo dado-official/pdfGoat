@@ -4,7 +4,9 @@ import { AppError } from '../core/errors';
 import { checkFileSize, MAX_FILE_BYTES, toMegabytes } from '../core/limits';
 import type { PageRef } from '../core/types';
 import type { BuildSource } from './build';
-import type { OpenResult, ViewRequest, ViewResponse } from './view.worker';
+import type { Box, OpenResult, TextLine, ViewRequest, ViewResponse } from './view.worker';
+
+export type { Box, TextLine };
 
 export interface SourceDoc extends BuildSource {
   id: string;
@@ -129,3 +131,11 @@ export async function renderPage(
 }
 
 export const closePdf = (doc: SourceDoc) => call({ type: 'close', docId: doc.id });
+
+/** The text of one page with positions, for selecting and copying. */
+export const getText = (doc: SourceDoc, srcIndex: number) =>
+  call<TextLine[]>({ type: 'text', docId: doc.id, pageIndex: srcIndex });
+
+/** Boxes of every match of `needle` on one page. */
+export const searchPage = (doc: SourceDoc, srcIndex: number, needle: string) =>
+  call<Box[][]>({ type: 'search', docId: doc.id, pageIndex: srcIndex, needle });
