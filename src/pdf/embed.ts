@@ -171,11 +171,46 @@ export interface PictureBlock {
   opacity?: number;
 }
 
+/**
+ * The picture as an object of the document. A PNG with transparency becomes a picture with a
+ * separate mask (as PDF wants it); adding the PNG as it is would turn the transparent places black.
+ */
+function addPicture(engine: Mupdf, doc: PDFDocument, png: Uint8Array): PDFObject {
+  const image = new engine.Image(png);
+  const pixmap = image.toPixmap();
+  if (!pixmap.getAlpha()) return doc.addImage(image);
+  const w = pixmap.getWidth();
+  const h = pixmap.getHeight();
+  const n = pixmap.getNumberOfComponents();
+  const stride = pixmap.getStride();
+  const src = pixmap.getPixels();
+  const color = new engine.Pixmap(engine.ColorSpace.DeviceRGB, [0, 0, w, h], false);
+  const grey = new engine.Pixmap(engine.ColorSpace.DeviceGray, [0, 0, w, h], false);
+  const c = color.getPixels();
+  const g = grey.getPixels();
+  const cs = color.getStride();
+  const gs = grey.getStride();
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = y * stride + x * n;
+      const a = src[i + n - 1];
+      g[y * gs + x] = a;
+      // The engine keeps colours multiplied with the alpha; the mask wants them as they are.
+      const back = a > 0 ? 255 / a : 0;
+      for (let k = 0; k < 3; k++) c[y * cs + x * 3 + k] = Math.min(255, src[i + (n === 2 ? 0 : k)] * back);
+    }
+  }
+  // The mask is a picture of its own that the colour picture points to.
+  const object = doc.addImage(new engine.Image(color));
+  object.put('SMask', doc.addImage(new engine.Image(grey)));
+  return object;
+}
+
 /** Writes a picture into the page, stretched to its box. */
 export function embedPicture(engine: Mupdf, doc: PDFDocument, page: PDFPage, p: PictureBlock) {
   const res = resourcesOf(doc, page);
   const name = `PGimg${counter++}`;
-  subDict(doc, res, 'XObject').put(name, doc.addImage(new engine.Image(p.png)));
+  subDict(doc, res, 'XObject').put(name, addPicture(engine, doc, p.png));
   let gs = '';
   if (p.opacity !== undefined && p.opacity < 1) {
     const gname = `PGgs${counter++}`;

@@ -6,6 +6,7 @@ import { AppError, type ErrorCode, type ErrorParams } from '../core/errors';
 import type { Annot } from '../core/annotations';
 import { colorHex, type FontStyle } from '../core/edits';
 import { addComment, listComments } from './annotate';
+import { pictureAsPng, pictureBoxes } from './images';
 import { inspectPdf, type Inspection } from './protect';
 import { applyFields, hideWidgets, listFields, type FormField } from './forms';
 
@@ -229,46 +230,22 @@ function pageImages({ docId, pageIndex }: Extract<ViewRequest, { type: 'images' 
   const doc = docs.get(docId);
   if (!doc || !hasPage(doc, pageIndex)) return [];
   const page = doc.loadPage(pageIndex);
-  const boxes: Box[] = [];
   try {
-    const text = page.toStructuredText('preserve-images');
-    try {
-      text.walk({ onImageBlock: ([x0, y0, x1, y1]) => boxes.push([x0, y0, x1, y1]) });
-    } finally {
-      text.destroy();
-    }
+    return pictureBoxes(page);
   } finally {
     page.destroy();
   }
-  return boxes;
 }
 
-/** One picture of a page as PNG. */
-function imagePng({ docId, pageIndex, index }: Extract<ViewRequest, { type: 'imagePng' }>): Uint8Array {
+/** One picture of a page as PNG, as it looks on the page. */
+function imagePng(engine: Engine, { docId, pageIndex, index }: Extract<ViewRequest, { type: 'imagePng' }>): Uint8Array {
   const doc = docs.get(docId);
   if (!doc || !hasPage(doc, pageIndex)) throw new AppError('renderFailed');
   const page = doc.loadPage(pageIndex);
   try {
-    const text = page.toStructuredText('preserve-images');
-    try {
-      let n = 0;
-      let png: Uint8Array | null = null;
-      text.walk({
-        onImageBlock(_bbox, _matrix, image) {
-          if (n++ !== index) return;
-          const pixmap = image.toPixmap();
-          try {
-            png = pixmap.asPNG().slice();
-          } finally {
-            pixmap.destroy();
-          }
-        },
-      });
-      if (!png) throw new AppError('renderFailed');
-      return png;
-    } finally {
-      text.destroy();
-    }
+    const png = pictureAsPng(engine, page, index);
+    if (!png) throw new AppError('renderFailed');
+    return png;
   } finally {
     page.destroy();
   }
@@ -420,7 +397,7 @@ self.onmessage = async ({ data }: MessageEvent<ViewRequest>) => {
       case 'images':
         return post({ id: data.id, ok: true, result: pageImages(data) });
       case 'imagePng': {
-        const png = imagePng(data);
+        const png = imagePng(engine, data);
         return post({ id: data.id, ok: true, result: png }, [png.buffer]);
       }
       case 'fields':

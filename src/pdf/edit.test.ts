@@ -99,3 +99,78 @@ describe('helpers', () => {
     expect(colorHex(undefined)).toBe('#14161a');
   });
 });
+
+describe('moving a picture keeps its look', () => {
+  /** A 40 x 30 picture with an asymmetric pattern and a transparent corner, as RGBA PNG. */
+  async function alphaPng(): Promise<Buffer> {
+    const { crc32, deflateSync } = await import('node:zlib');
+    const w = 40;
+    const h = 30;
+    const rows: number[] = [];
+    for (let y = 0; y < h; y++) {
+      rows.push(0);
+      for (let x = 0; x < w; x++) rows.push(x * 6, y * 8, 200 - x * 4, x < 14 && y < 10 ? 0 : x >= 30 ? 128 : 255); // top left corner is see-through, the right edge half so
+    }
+    const chunk = (type: string, data: Buffer) => {
+      const body = Buffer.concat([Buffer.from(type, 'ascii'), data]);
+      const out = Buffer.alloc(body.length + 8);
+      out.writeUInt32BE(data.length, 0);
+      body.copy(out, 4);
+      out.writeUInt32BE(crc32(body), body.length + 4);
+      return out;
+    };
+    const head = Buffer.alloc(13);
+    head.writeUInt32BE(w, 0);
+    head.writeUInt32BE(h, 4);
+    head.set([8, 6, 0, 0, 0], 8);
+    return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', head), chunk('IDAT', deflateSync(Buffer.from(rows))), chunk('IEND', Buffer.alloc(0))]);
+  }
+
+  async function sourceWith(rotate: number) {
+    const { PDFDocument, StandardFonts, rgb, degrees } = await import('pdf-lib');
+    const doc = await PDFDocument.create();
+    await doc.embedFont(StandardFonts.Helvetica);
+    const page = doc.addPage([300, 300]);
+    page.drawRectangle({ x: 0, y: 0, width: 300, height: 300, color: rgb(0.8, 0.9, 1) });
+    page.drawImage(await doc.embedPng(await alphaPng()), { x: 100, y: 100, width: 120, height: 90, rotate: degrees(rotate) });
+    return doc.save();
+  }
+
+  async function pixels(bytes: Uint8Array) {
+    const { PDFDocument, ColorSpace } = await import('mupdf');
+    const doc = new PDFDocument(bytes);
+    try {
+      const pix = doc.loadPage(0).toPixmap([2, 0, 0, 2, 0, 0], ColorSpace.DeviceRGB, false, false);
+      return { data: Array.from(pix.getPixels()), width: pix.getWidth() };
+    } finally {
+      doc.destroy();
+    }
+  }
+
+  it.each([0, 90, 180])('looks the same after a "move" to the same place, rotated %i degrees, with transparency', async (rotate) => {
+    const bytes = await sourceWith(rotate);
+    const { PDFDocument } = await import('mupdf');
+    const { pictureAsPng, pictureBoxes } = await import('./images');
+    const engine = await import('mupdf');
+    const doc = new PDFDocument(bytes);
+    const p = doc.loadPage(0);
+    const [box] = pictureBoxes(p);
+    const png = pictureAsPng(engine, p, 0)!;
+    doc.destroy();
+    const edit: Edit = { id: 'i', kind: 'image', box, target: box, png };
+    const out = await buildPdf([page([edit])], { a: { read: async () => bytes } });
+    const [before, after] = await Promise.all([pixels(bytes), pixels(out)]);
+    // Compare the area of the picture (and a margin): the average difference per channel must be tiny.
+    let sum = 0;
+    let n = 0;
+    for (let y = Math.floor(box[1] * 2) - 4; y < Math.ceil(box[3] * 2) + 4; y++) {
+      for (let x = Math.floor(box[0] * 2) - 4; x < Math.ceil(box[2] * 2) + 4; x++) {
+        for (let c = 0; c < 3; c++) {
+          sum += Math.abs(before.data[(y * before.width + x) * 3 + c] - after.data[(y * after.width + x) * 3 + c]);
+          n++;
+        }
+      }
+    }
+    expect(sum / n).toBeLessThan(4);
+  });
+});
