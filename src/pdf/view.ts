@@ -121,9 +121,8 @@ export async function openPdf(file: File, password?: string): Promise<OpenedPdf>
 export async function renderPage(
   doc: SourceDoc,
   srcIndex: number,
-  { width = 200, rotation = 0 } = {},
+  { width = 200, rotation = 0, dpr = Math.min(window.devicePixelRatio || 1, 2) } = {},
 ): Promise<string> {
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
   try {
     const png = await call<Uint8Array>({
       type: 'render',

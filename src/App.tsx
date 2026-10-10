@@ -5,7 +5,8 @@ import { toMegabytes } from './core/limits';
 import { editorReducer, initialState, selectedInOrder } from './state/editor';
 import { zip } from './pdf/build';
 import { buildPdf, CancelledError, type JobOptions } from './pdf/engine';
-import { closePdf, openPdf, type OpenedPdf, type SourceDoc } from './pdf/view';
+import { closePdf, openPdf, renderPage, type OpenedPdf, type SourceDoc } from './pdf/view';
+import { turnedSize } from './core/readerLayout';
 import { useI18n } from './i18n/context';
 import { download } from './ui/download';
 import GoatMark from './ui/GoatMark';
@@ -17,7 +18,10 @@ import PageGrid from './features/organize/PageGrid';
 import Preview from './features/organize/Preview';
 import Toolbar from './features/organize/Toolbar';
 import { useThumbnails } from './features/organize/useThumbnails';
+import PrintSheet, { type PrintPage } from './features/print/PrintSheet';
 import SplitDialog, { type SplitPlan } from './features/merge-split/SplitDialog';
+
+const PRINT_DPI = 150;
 
 const isPdf = (f: File) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
 
@@ -101,6 +105,7 @@ export default function App() {
 
   function closeAll() {
     if (pages.length && !confirm(t('confirm.closeAll'))) return;
+    freePrint();
     Object.values(docs).forEach(closePdf);
     setDocs({});
     clearThumbs();
@@ -138,6 +143,50 @@ export default function App() {
       download(await buildPdf(pages, docs, job), `${base()}.pdf`);
     });
 
+  const [printPages, setPrintPages] = useState<PrintPage[] | null>(null);
+
+  // The images are freed when the print dialog closes or when everything is closed.
+  const printed = useRef<PrintPage[]>([]);
+  const freePrint = useCallback(() => {
+    printed.current.forEach((p) => URL.revokeObjectURL(p.url));
+    printed.current = [];
+    setPrintPages(null);
+  }, [setPrintPages]);
+
+  // The browser prints what is on the page, so the pages are drawn as images (150 dpi) first.
+  const print = () =>
+    run(t('busy.printing'), async (job) => {
+      const made: PrintPage[] = [];
+      let skipped = 0;
+      try {
+        for (const [i, p] of pages.entries()) {
+          if (job.signal?.aborted) throw new CancelledError();
+          const size = docs[p.docId].sizes[p.srcIndex];
+          if (!size) {
+            skipped++;
+            continue;
+          }
+          const turned = turnedSize({ width: size[0], height: size[1] }, p.rotation);
+          const url = await renderPage(docs[p.docId], p.srcIndex, {
+            width: Math.round((turned.width * PRINT_DPI) / 72),
+            rotation: p.rotation,
+            dpr: 1,
+          });
+          made.push({ url, landscape: turned.width > turned.height });
+          job.onProgress?.((i + 1) / pages.length);
+        }
+      } catch (err) {
+        made.forEach((m) => URL.revokeObjectURL(m.url));
+        throw err;
+      }
+      if (skipped) setNotice(t('warning.printSkipped', { count: skipped }));
+      freePrint();
+      if (made.length) {
+        printed.current = made;
+        setPrintPages(made);
+      }
+    });
+
   const split = (plan: SplitPlan) =>
     run(t('busy.splitting'), async (job) => {
       if (plan === 'selection') {
@@ -170,6 +219,9 @@ export default function App() {
     } else if (mod && key === 'z') {
       e.preventDefault();
       dispatch({ type: 'undo' });
+    } else if (mod && key === 'p' && pages.length) {
+      e.preventDefault();
+      if (!busy) print();
     } else if (view === 'read') {
       return;
     } else if (mod && key === 'a' && pages.length) {
@@ -247,6 +299,7 @@ export default function App() {
               onReverse={() => dispatch({ type: 'reverse' })}
               onSplit={() => setSplitOpen(true)}
               onSave={save}
+              onPrint={print}
             />
 
             <div className="rail-foot">{meta}</div>
@@ -326,6 +379,8 @@ export default function App() {
           )}
         </div>
       )}
+
+      {printPages && <PrintSheet key={printPages[0].url} pages={printPages} onDone={freePrint} />}
 
       {previewPage && (
         <Preview

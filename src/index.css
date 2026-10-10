@@ -660,3 +660,23 @@ dialog::backdrop { background: rgb(28 33 38 / 0.55); }
 .page-link:hover, .page-link:focus-visible { outline: 2px solid var(--signal-deep); background: rgb(210 232 74 / 0.18); }
 
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* Printing: only the sheet of page images is shown */
+.print-sheet { display: none; }
+@page portrait { size: portrait; margin: 0; }
+@page landscape { size: landscape; margin: 0; }
+@media print {
+  .shell, .busy, .file-overlay, dialog { display: none !important; }
+  html, body { background: white; }
+  .print-sheet { display: block; }
+  .print-page {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    object-fit: contain;
+    break-after: page;
+  }
+  .print-page.portrait { page: portrait; }
+  .print-page.landscape { page: landscape; }
+  .print-page:last-child { break-after: auto; }
+}

@@ -16,6 +16,7 @@ interface Props {
   onDelete: () => void;
   onReverse: () => void;
   onSplit: () => void;
+  onPrint: () => void;
   onSave: () => void;
 }
 
@@ -40,6 +41,7 @@ export default function Toolbar(p: Props) {
       </div>
       <div className="group end">
         <button onClick={p.onSplit} disabled={!p.pageCount}>{t('toolbar.split')}</button>
+        <button onClick={p.onPrint} disabled={!p.pageCount || p.busy} title={t('toolbar.print.title')}>{t('toolbar.print')}</button>
         <button className="primary" onClick={p.onSave} disabled={!p.pageCount || p.busy}>
           {t(p.docCount > 1 ? 'toolbar.saveMerged' : 'toolbar.save')}
         </button>
