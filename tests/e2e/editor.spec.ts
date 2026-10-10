@@ -1524,11 +1524,12 @@ test.describe('legal pages', () => {
     await expect(page.locator('.card.selected')).toHaveCount(1);
   });
 
-  test('speak English when the language is switched, and name the details that are still missing', async ({ app: page }) => {
+  test('speak English when the language is switched, and show no warning now that the details are complete', async ({ app: page }) => {
     await page.getByRole('button', { name: 'English' }).click();
     await page.getByRole('link', { name: 'Privacy' }).click();
     await expect(page.getByText('Your PDF files never leave your browser.')).toBeVisible();
-    await expect(page.getByRole('alert')).toContainText('still missing');
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'danielnagler1507@gmail.com' })).toBeVisible();
   });
 
   test('serve the licence texts', async ({ app: page, request, baseURL }) => {
