@@ -5,16 +5,8 @@ import type { PageRef } from '../../core/types';
 import type { MessageKey } from '../../i18n/de';
 import { useI18n } from '../../i18n/context';
 import { unsupportedChars } from '../../core/winansi';
+import { MARK_PRESETS as PRESETS, type MarkPreset as Preset } from '../../core/markPresets';
 import PageDialog from './PageDialog';
-
-type Preset = 'number' | 'header' | 'footer' | 'watermark';
-
-const PRESETS: Record<Preset, Omit<Mark, 'id'>> = {
-  number: { text: '{n} / {total}', place: 'bottomCenter', size: 10, color: '#14161a', opacity: 1, diagonal: false },
-  header: { text: '', place: 'topCenter', size: 10, color: '#14161a', opacity: 1, diagonal: false },
-  footer: { text: '', place: 'bottomLeft', size: 10, color: '#14161a', opacity: 1, diagonal: false },
-  watermark: { text: 'ENTWURF', place: 'center', size: 90, color: '#e5484d', opacity: 0.2, diagonal: true },
-};
 
 interface Props {
   scope: string;

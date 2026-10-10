@@ -21,6 +21,7 @@ import { useFileDrop, useShortcuts } from './ui/useWindowEvents';
 import DropZone from './features/open/DropZone';
 import PasswordDialog from './features/open/PasswordDialog';
 import Reader from './features/read/Reader';
+import BatchDialog from './features/batch/BatchDialog';
 import OcrDialog from './features/ocr/OcrDialog';
 import { ocrWidth, recognizePages, type OcrLang } from './pdf/ocr';
 import { ocrLines } from './core/ocr';
@@ -87,6 +88,7 @@ export default function App() {
   const [compressOpen, setCompressOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
   const [ocrOpen, setOcrOpen] = useState(false);
+  const [batchOpen, setBatchOpen] = useState(false);
   // Protection and cleaning apply to everything that is saved, in every tab.
   const [protect, setProtect] = useState<Protection | null>(null);
   const [clean, setClean] = useState<Cleaning>(noCleaning);
@@ -432,6 +434,7 @@ export default function App() {
     { id: 'crop', label: t('cmd.crop'), keywords: t('cmd.crop.kw'), enabled: hasPages, run: () => setPageDialog('crop') },
     { id: 'resize', label: t('cmd.resize'), keywords: t('cmd.resize.kw'), enabled: hasPages, run: () => setPageDialog('resize') },
     { id: 'protect', label: t('cmd.protect'), keywords: t('cmd.protect.kw'), enabled: !!tab, run: () => setProtectOpen(true) },
+    { id: 'batch', label: t('cmd.batch'), keywords: t('cmd.batch.kw'), enabled: true, run: () => setBatchOpen(true) },
     { id: 'ocr', label: t('cmd.ocr'), keywords: t('cmd.ocr.kw'), enabled: hasPages, run: () => setOcrOpen(true) },
     { id: 'compare', label: t('cmd.compare'), keywords: t('cmd.compare.kw'), enabled: ws.tabs.length > 1, run: () => setCompareOpen(true) },
     { id: 'compress', label: t('cmd.compress'), keywords: t('cmd.compress.kw'), enabled: hasPages, run: () => setCompressOpen(true) },
@@ -601,6 +604,7 @@ export default function App() {
                 onExport={() => setExportOpen(true)}
                 onCompress={() => setCompressOpen(true)}
                 onOcr={() => setOcrOpen(true)}
+                onBatch={() => setBatchOpen(true)}
                 canCompare={ws.tabs.length > 1}
                 onCompare={() => setCompareOpen(true)}
               />
@@ -665,6 +669,7 @@ export default function App() {
         <MergeDialog tabs={ws.tabs} onMerge={mergeTabs} onClose={() => setMergeOpen(false)} />
       )}
 
+      {batchOpen && <BatchDialog date={date} onClose={() => setBatchOpen(false)} />}
       {ocrOpen && (
         <OcrDialog
           scope={scope}

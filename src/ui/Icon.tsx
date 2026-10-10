@@ -33,6 +33,7 @@ const PATHS = {
   compress: 'M4 9h6V3M20 9h-6V3M4 15h6v6M20 15h-6v6',
   compare: 'M4 4h7v16H4zM13 4h7v16h-7zM6.5 9h2M15.5 9h2M6.5 13h2',
   ocr: 'M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4M8 9h8M12 9v7M9.5 16h5',
+  batch: 'M5 7h14M5 12h14M5 17h9M17 15l3 2-3 2',
   // Rail
   open: 'M12 5v14M5 12h14',
   undo: 'M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3',
