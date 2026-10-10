@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   editorReducer,
-  HISTORY_LIMIT,
   initialState,
   selectedInOrder,
   type EditorAction,
@@ -15,10 +14,10 @@ const run = (...actions: EditorAction[]) => actions.reduce(editorReducer, initia
 const withPages = (...names: string[]) => run({ type: 'add', pages: names.map((n) => page(n)) });
 
 describe('add', () => {
-  it('appends pages and records an undo step', () => {
+  it('appends pages and records a change', () => {
     const s = run({ type: 'add', pages: [page('a')] }, { type: 'add', pages: [page('b'), page('c')] });
     expect(ids(s)).toEqual(['a', 'b', 'c']);
-    expect(s.history).toHaveLength(2);
+    expect(s.changes.map((c) => c.type)).toEqual(['add', 'add']);
   });
 
   it('ignores an empty add', () => {
@@ -51,7 +50,7 @@ describe('remove', () => {
     expect([...s.selected]).toEqual(['c']);
   });
 
-  it('does not record history when nothing matched', () => {
+  it('does not record a change when nothing matched', () => {
     const s = withPages('a');
     expect(editorReducer(s, { type: 'remove', ids: ['x'] })).toBe(s);
   });
@@ -112,12 +111,12 @@ describe('selection', () => {
 
   it('selects all and clears, without touching history', () => {
     let s = withPages('a', 'b');
-    const history = s.history;
+    const changes = s.changes;
     s = editorReducer(s, { type: 'selectAll' });
     expect(s.selected.size).toBe(2);
     s = editorReducer(s, { type: 'clearSelection' });
     expect(s.selected.size).toBe(0);
-    expect(s.history).toBe(history);
+    expect(s.changes).toBe(changes);
   });
 
   it('reports the selection in page order, not click order', () => {
@@ -143,10 +142,12 @@ describe('undo', () => {
     expect(editorReducer(s, { type: 'undo' })).toBe(s);
   });
 
-  it('keeps at most the history limit', () => {
+  it('can go back all the way, however many changes there are', () => {
     let s = withPages('a');
-    for (let i = 0; i < HISTORY_LIMIT + 10; i++) s = editorReducer(s, { type: 'rotate', ids: ['a'], delta: 90 });
-    expect(s.history).toHaveLength(HISTORY_LIMIT);
+    for (let i = 0; i < 200; i++) s = editorReducer(s, { type: 'rotate', ids: ['a'], delta: 90 });
+    expect(s.changes).toHaveLength(201);
+    for (let i = 0; i < 201; i++) s = editorReducer(s, { type: 'undo' });
+    expect(s.pages).toEqual([]);
   });
 
   it('drops selections of pages that the undo removes', () => {
@@ -187,7 +188,7 @@ describe('redo', () => {
     s = editorReducer(s, { type: 'reverse' });
     s = editorReducer(s, { type: 'undo' });
     s = editorReducer(s, { type: 'rotate', ids: ['a'], delta: 90 });
-    expect(s.future).toEqual([]);
+    expect(s.undone).toEqual([]);
     expect(editorReducer(s, { type: 'redo' })).toBe(s);
   });
 

@@ -229,8 +229,8 @@ export default function App() {
               pageCount={pages.length}
               docCount={docCount}
               selectedCount={selected.size}
-              canUndo={state.history.length > 0}
-              canRedo={state.future.length > 0}
+              canUndo={state.changes.length > 0}
+              canRedo={state.undone.length > 0}
               busy={!!busy}
               onAdd={openFilePicker}
               onUndo={() => dispatch({ type: 'undo' })}
