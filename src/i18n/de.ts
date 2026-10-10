@@ -377,6 +377,12 @@ export const de = {
   'edit.replace': 'Ersetzen',
   'edit.restore': 'Wiederherstellen',
   'edit.reset': 'Änderung zurücknehmen',
+
+  // Ribbon
+  'ribbon.comment': 'Kommentieren',
+  'ribbon.fill': 'Ausfüllen und Unterschreiben',
+  'ribbon.insert': 'Einfügen',
+  'ribbon.edit': 'Ändern',
 } as const;
 
 export type MessageKey = keyof typeof de;

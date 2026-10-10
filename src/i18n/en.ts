@@ -374,4 +374,10 @@ export const en: Record<MessageKey, string> = {
   'edit.replace': 'Replace',
   'edit.restore': 'Restore',
   'edit.reset': 'Undo this change',
+
+  // Ribbon
+  'ribbon.comment': 'Comment',
+  'ribbon.fill': 'Fill in and sign',
+  'ribbon.insert': 'Insert',
+  'ribbon.edit': 'Edit',
 };

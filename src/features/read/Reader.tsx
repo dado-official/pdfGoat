@@ -27,6 +27,7 @@ import SignatureDialog from '../form/SignatureDialog';
 import { imagePicture } from '../comment/pictures';
 import type { StampName } from '../comment/stamps';
 import ReadPage from './ReadPage';
+import Icon from '../../ui/Icon';
 import Sidebar, { type SidebarTab } from './Sidebar';
 import { MAX_MATCHES, useSearch } from './useSearch';
 
@@ -397,6 +398,7 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
           <button onClick={() => stepMatch(1)} disabled={!matches.length} aria-label={t('read.nextMatch')} title="Enter">↓</button>
         </div>
         <button className="panel-toggle" aria-pressed={panel} onClick={() => setPanel(!panel)}>
+          <Icon name="comments" size={16} />
           {t('comment.panel', { count: commentCount })}
         </button>
         <div className="zoom">
