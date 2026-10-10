@@ -446,6 +446,8 @@ dialog::backdrop { background: rgb(28 33 38 / 0.55); }
   font: inherit;
 }
 .split .text { margin-left: 26px; }
+.password .text { margin-left: 0; }
+.password p { margin: 0; }
 .split .num { width: 64px; padding: 2px 6px; }
 .error-text { margin: 0; color: var(--danger); }
 .split .hint { margin: 0; font-size: 13px; color: var(--dust); }

@@ -36,13 +36,15 @@ export interface OpenedPdf {
   pages: PageRef[];
   /** True when the file is large enough that the user should be warned. */
   large: boolean;
+  /** True when the file is protected; saving writes it without protection. */
+  encrypted: boolean;
 }
 
 let nextId = 1;
 const uid = (prefix: string) => `${prefix}${nextId++}`;
 
 /** Opens a file and returns the document and its pages. The bytes never leave the browser. */
-export async function openPdf(file: File): Promise<OpenedPdf> {
+export async function openPdf(file: File, password?: string): Promise<OpenedPdf> {
   const { name } = file;
   const verdict = checkFileSize(file.size);
   if (verdict === 'reject') {
@@ -59,6 +61,7 @@ export async function openPdf(file: File): Promise<OpenedPdf> {
     view = await pdfjs.getDocument({
       // PDF.js takes over the buffer it is given, so it gets a copy when we keep the bytes.
       data: keepBytes ? data.slice() : data,
+      password,
       cMapUrl: asset('cmaps'),
       cMapPacked: true,
       standardFontDataUrl: asset('standard_fonts'),
@@ -66,21 +69,20 @@ export async function openPdf(file: File): Promise<OpenedPdf> {
       iccUrl: asset('iccs'),
     }).promise;
   } catch (err) {
-    throw new AppError((err as Error)?.name === 'PasswordException' ? 'encrypted' : 'notPdf', { name });
+    if ((err as Error)?.name === 'PasswordException') {
+      // PDF.js code 2 means a password was given and is wrong; 1 means one is needed.
+      throw new AppError((err as { code?: number }).code === 2 ? 'passwordWrong' : 'passwordRequired', { name });
+    }
+    throw new AppError('notPdf', { name });
   }
-
-  // Files with only an owner password open without asking, but are still encrypted.
-  // They are refused until the password dialog exists; saving refuses them as well.
-  if (await isEncrypted(view)) {
-    await view.loadingTask.destroy();
-    throw new AppError('encrypted', { name });
-  }
+  const encrypted = await isEncrypted(view);
 
   const doc: SourceDoc = {
     id: uid('d'),
     name,
     view,
     byteLength: data.byteLength,
+    password,
     read: keepBytes ? async () => data : () => readFile(file),
   };
   const pages = Array.from({ length: view.numPages }, (_, i) => ({
@@ -89,7 +91,7 @@ export async function openPdf(file: File): Promise<OpenedPdf> {
     srcIndex: i,
     rotation: 0,
   }));
-  return { doc, pages, large: verdict === 'warn' };
+  return { doc, pages, large: verdict === 'warn', encrypted };
 }
 
 async function isEncrypted(view: PDFDocumentProxy): Promise<boolean> {

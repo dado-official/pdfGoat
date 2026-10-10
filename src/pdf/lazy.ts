@@ -5,7 +5,8 @@ export type { OpenedPdf, SourceDoc };
 
 const load = () => import('./pdfjs');
 
-export const openPdf = async (file: File): Promise<OpenedPdf> => (await load()).openPdf(file);
+export const openPdf = async (file: File, password?: string): Promise<OpenedPdf> =>
+  (await load()).openPdf(file, password);
 
 export const renderPage = async (
   doc: SourceDoc,

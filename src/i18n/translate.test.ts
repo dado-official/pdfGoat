@@ -20,6 +20,8 @@ describe('messages', () => {
   it('has a text for every error code', () => {
     const codes: Record<ErrorCode, true> = {
       encrypted: true,
+      passwordRequired: true,
+      passwordWrong: true,
       notPdf: true,
       tooLarge: true,
       fileUnreadable: true,

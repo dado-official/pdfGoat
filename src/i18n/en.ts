@@ -92,7 +92,9 @@ export const en: Record<MessageKey, string> = {
   'split.submit': 'Split & download',
 
   'error.noPdfSelected': 'Please choose PDF files.',
-  'error.encrypted': '“{name}” is password-protected or encrypted. This is not supported yet.',
+  'error.encrypted': '“{name}” is encrypted and cannot be opened with this password.',
+  'error.passwordRequired': '“{name}” is password-protected.',
+  'error.passwordWrong': 'The password is wrong. Please try again.',
   'error.notPdf': '“{name}” could not be read as a PDF.',
   'error.tooLarge': '“{name}” is too large at {size} MB. The maximum is {max} MB.',
   'error.fileUnreadable':
@@ -105,6 +107,12 @@ export const en: Record<MessageKey, string> = {
   'error.noPages': 'There are no pages to save.',
   'error.sourceMissing': 'Source file {id} is missing.',
   'error.failed': 'That did not work: {message}',
+  'warning.encrypted': '“{name}” is protected. Saving removes the protection.',
+  'password.title': 'Enter password',
+  'password.label': 'Password',
+  'password.cancel': 'Skip',
+  'password.submit': 'Open',
+  'password.hint': 'The password stays in your browser and is not stored anywhere.',
   'warning.large': '“{name}” is {size} MB. Opening and saving may take a while and need a lot of memory.',
 
   'file.merged': 'merged',

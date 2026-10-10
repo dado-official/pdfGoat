@@ -1,7 +1,7 @@
 import { expect, test as base, type Download, type Page } from '@playwright/test';
 import { unzipSync } from 'fflate';
 import { readFile, rm, writeFile } from 'node:fs/promises';
-import { describePdf, makeEncryptedPdf, makeHalfBrokenPdf, makePdf } from '../fixtures';
+import { describePdf, makeHalfBrokenPdf, makePdf, makeProtectedPdf } from '../fixtures';
 
 const pdfFile = (name: string, bytes: Uint8Array) => ({ name, mimeType: 'application/pdf', buffer: Buffer.from(bytes) });
 
@@ -273,18 +273,41 @@ test.describe('files that cannot be opened', () => {
     await expect(cards(page)).toHaveCount(0);
   });
 
-  test('rejects a password-protected PDF with a clear message', async ({ app: page }) => {
-    await page.getByTestId('file-input').setInputFiles(pdfFile('geheim.pdf', await makeEncryptedPdf()));
-    await expect(page.getByRole('alert')).toContainText('„geheim.pdf“ ist passwortgeschützt oder verschlüsselt');
-    await expect(cards(page)).toHaveCount(0);
+  test('asks for the password of a protected PDF, retries after a wrong one and saves it unprotected', async ({ app: page }) => {
+    await page.getByTestId('file-input').setInputFiles(pdfFile('geheim.pdf', await makeProtectedPdf('geheim')));
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toContainText('„geheim.pdf“ ist passwortgeschützt');
+
+    await dialog.getByLabel('Passwort').fill('falsch');
+    await dialog.getByRole('button', { name: 'Öffnen' }).click();
+    await expect(dialog.getByRole('alert')).toContainText('Das Passwort stimmt nicht');
+
+    await dialog.getByLabel('Passwort').fill('geheim');
+    await dialog.getByRole('button', { name: 'Öffnen' }).click();
+    await expect(cards(page)).toHaveCount(1);
+    await expect(page.getByRole('status').filter({ hasText: 'Schutz entfernt' })).toBeVisible();
+
+    const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: /PDF speichern/ }).click()]);
+    const bytes = await downloadBytes(download);
+    expect(await widthsAndRotations(bytes)).toEqual(['400@0']);
+    // An unprotected file opens without a password.
+    expect(await describePdf(bytes)).toHaveLength(1);
   });
 
-  // Such a file opens without a password, but saving it would silently produce empty pages.
-  test('rejects a PDF that is encrypted with an owner password only', async ({ app: page }) => {
+  test('skipping the password dialog opens nothing and shows no error', async ({ app: page }) => {
+    await page.getByTestId('file-input').setInputFiles(pdfFile('geheim.pdf', await makeProtectedPdf('geheim')));
+    await page.getByRole('dialog').getByRole('button', { name: 'Überspringen' }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(cards(page)).toHaveCount(0);
+    await expect(page.getByRole('alert')).toHaveCount(0);
+  });
+
+  // Such a file opens without a password and is saved without protection.
+  test('opens a PDF that is encrypted with an owner password only', async ({ app: page }) => {
     const bytes = await readFile(new URL('../files/owner-encrypted.pdf', import.meta.url));
     await page.getByTestId('file-input').setInputFiles(pdfFile('gesperrt.pdf', bytes));
-    await expect(page.getByRole('alert')).toContainText('„gesperrt.pdf“ ist passwortgeschützt oder verschlüsselt');
-    await expect(cards(page)).toHaveCount(0);
+    await expect(cards(page)).toHaveCount(2);
+    await expect(page.getByRole('status').filter({ hasText: 'Schutz entfernt' })).toBeVisible();
   });
 
   test('names every broken file and still opens the good ones', async ({ app: page }) => {

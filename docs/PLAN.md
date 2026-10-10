@@ -289,7 +289,6 @@ Kein eigener Meilenstein in der Reihe, sondern mit dem Abschluss von M3 fällig.
 - **Texte als `de.ts`/`en.ts` statt JSON:** TypeScript prüft so beim Build, dass jeder Schlüssel existiert und beide Sprachen vollständig sind.
 - **CSP in der Seite und in `dist/_headers`, beides aus `vite.config.ts` erzeugt:** Die Policy gilt damit auf jedem Hoster und in den Browser-Tests, und es gibt nur eine Quelle. Eine Datei `public/_headers` gibt es deshalb nicht.
 - **Dateien unter 100 MB bleiben im Speicher,** damit das Speichern auch dann klappt, wenn die Datei auf der Festplatte inzwischen verschoben, überschrieben oder gelöscht wurde. Nur größere Dateien werden beim Speichern neu gelesen. Passt die Dateigröße dann nicht mehr zur geöffneten Datei, bricht der Export mit einer Meldung ab.
-- **Verschlüsselte PDFs werden abgelehnt,** auch solche, die sich ohne Passwort öffnen lassen. pdf-lib kann sie nicht entschlüsseln und würde leere Seiten speichern. Entfällt mit M2.
 - **Größenlimits:** Warnung ab 100 MB, Ablehnung über 500 MB (`src/core/limits.ts`).
 - **Test-PDFs** werden in `tests/fixtures.ts` im Code erzeugt, die echte verschlüsselte Datei liegt in `tests/files/`.
 
@@ -317,13 +316,13 @@ Erledigt aus M2:
 - `LICENSE` (AGPL-3.0), Lizenzangabe in `package.json` und README.
 - **Speichern, Zusammenfügen und Aufteilen laufen über MuPDF** (`src/pdf/build.ts`, `src/pdf/merge.ts`). Lesezeichen, Links, Kommentare, Formularfelder und Dokumenteigenschaften bleiben erhalten. Gelöschte Seiten sind wirklich aus der Datei entfernt, auch wenn die Datei „beim Öffnen Seite N zeigen“ auf eine gelöschte Seite gesetzt hatte.
 - Zusammenfügen mehrerer Dateien: Lesezeichen jeder Datei stehen unter einem Eintrag mit dem Dateinamen (nur wenn mindestens eine Datei Lesezeichen hat), gleichnamige Formularfelder werden umbenannt (`name`, `name_2`).
+- **Verschlüsselte PDFs öffnen mit Passwortabfrage** (`PasswordDialog`, wiederholt bei falschem Passwort, „Überspringen“ öffnet nichts). Dateien mit nur Besitzer-Passwort öffnen direkt. Gespeichert wird immer ohne Schutz, ein Hinweis beim Öffnen sagt das. Grund: MuPDF behält den Schutz beim Speichern, beim Zusammenfügen würde aber nur der Schutz der ersten Datei gelten. Passwort setzen kommt mit M7.
 - pdf-lib ist aus der App entfernt und dient nur noch in den Tests als zweiter, unabhängiger Leser.
 
 Offen aus M2:
 
 - Engine in einen Web Worker verlegen. Derzeit läuft sie beim Speichern im Hauptfenster, wie pdf-lib vorher.
 - Schnittstelle `pdf/engine.ts` und Änderungsliste im Dokumentmodell.
-- Verschlüsselte PDFs mit Passwortabfrage öffnen. Bis dahin werden sie weiter abgelehnt.
 - Prüfung mit echten großen PDFs im Browser.
 - Bekannte Lücke beim Zusammenfügen: Pop-up-Fenster von Kommentaren und Sprungziele in Schaltflächen der hinzugefügten Datei werden nicht übernommen, die Kommentare selbst schon.
 

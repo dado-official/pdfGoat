@@ -92,7 +92,9 @@ export const de = {
   'split.submit': 'Aufteilen & herunterladen',
 
   'error.noPdfSelected': 'Bitte PDF-Dateien auswählen.',
-  'error.encrypted': '„{name}“ ist passwortgeschützt oder verschlüsselt. Das wird noch nicht unterstützt.',
+  'error.encrypted': '„{name}“ ist verschlüsselt und kann mit diesem Passwort nicht geöffnet werden.',
+  'error.passwordRequired': '„{name}“ ist passwortgeschützt.',
+  'error.passwordWrong': 'Das Passwort stimmt nicht. Bitte noch einmal versuchen.',
   'error.notPdf': '„{name}“ konnte nicht als PDF gelesen werden.',
   'error.tooLarge': '„{name}“ ist mit {size} MB zu groß. Möglich sind höchstens {max} MB.',
   'error.fileUnreadable':
@@ -106,6 +108,12 @@ export const de = {
   'error.noPages': 'Keine Seiten zum Speichern.',
   'error.sourceMissing': 'Quelldatei {id} fehlt.',
   'error.failed': 'Das hat nicht geklappt: {message}',
+  'warning.encrypted': '„{name}“ ist geschützt. Beim Speichern wird der Schutz entfernt.',
+  'password.title': 'Passwort eingeben',
+  'password.label': 'Passwort',
+  'password.cancel': 'Überspringen',
+  'password.submit': 'Öffnen',
+  'password.hint': 'Das Passwort bleibt im Browser und wird nirgends gespeichert.',
   'warning.large':
     '„{name}“ ist {size} MB groß. Öffnen und Speichern können länger dauern und viel Arbeitsspeicher brauchen.',
 

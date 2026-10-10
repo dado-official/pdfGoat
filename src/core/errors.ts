@@ -2,6 +2,8 @@
 
 export type ErrorCode =
   | 'encrypted'
+  | 'passwordRequired'
+  | 'passwordWrong'
   | 'notPdf'
   | 'tooLarge'
   | 'fileUnreadable'

@@ -11,6 +11,8 @@ export interface BuildSource {
   read: () => Promise<Uint8Array>;
   /** Size seen when the file was opened, to notice a file that changed since. */
   byteLength?: number;
+  /** Password the file was opened with, if it asks for one. */
+  password?: string;
 }
 
 // The engine and fflate are only needed when saving, so they load on demand.
@@ -50,9 +52,8 @@ function open(engine: Engine, bytes: Uint8Array, src: BuildSource): PDFDocument 
   } catch {
     throw new AppError('notPdf', { name });
   }
-  // Saving encrypted files comes with the password dialog; until then they are refused, also
-  // those that open without a password but forbid changes.
-  if (doc.needsPassword() || !doc.getTrailer().get('Encrypt').isNull()) {
+  // Files with only an owner password need no password to open; they are saved like any other.
+  if (doc.needsPassword() && !doc.authenticatePassword(src.password ?? '')) {
     doc.destroy();
     throw new AppError('encrypted', { name });
   }
@@ -70,7 +71,9 @@ function hasPage(doc: PDFDocument, index: number): boolean {
 
 const title = (src: BuildSource) => (src.name ?? 'PDF').replace(/\.pdf$/i, '');
 
-const SAVE_OPTIONS = 'garbage=deduplicate,compress';
+// MuPDF keeps the protection of a file when it saves it. The result of several files could only
+// carry the protection of the first one, so every result is saved without protection.
+const SAVE_OPTIONS = 'garbage=deduplicate,compress,encrypt=none';
 
 /** Builds a new PDF from a list of pages (possibly from several documents). */
 export async function buildPdf(pages: PageRef[], sources: Record<string, BuildSource>): Promise<Uint8Array> {

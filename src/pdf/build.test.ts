@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { PDFDict, PDFDocument, PDFName } from 'pdf-lib';
 import { describe, expect, it } from 'vitest';
 import { unzipSync } from 'fflate';
-import { describePdf, describeRichPdf, makeEncryptedPdf, makeHalfBrokenPdf, makePdf, makeRichPdf } from '../../tests/fixtures';
+import { describePdf, describeRichPdf, makeEncryptedPdf, makeHalfBrokenPdf, makePdf, makeProtectedPdf, makeRichPdf } from '../../tests/fixtures';
 import { AppError } from '../core/errors';
 import type { PageRef } from '../core/types';
 import { buildPdf, zip, type BuildSource } from './build';
@@ -18,6 +18,16 @@ async function sources() {
     a: source(await makePdf([{ width: 501 }, { width: 502 }, { width: 503, rotate: 90 }])),
     b: source(await makePdf([{ width: 601 }, { width: 602 }])),
   };
+}
+
+async function isProtected(bytes: Uint8Array) {
+  const { PDFDocument: MuPdf } = await import('mupdf');
+  const doc = new MuPdf(bytes);
+  try {
+    return doc.needsPassword() || !doc.getTrailer().get('Encrypt').isNull();
+  } finally {
+    doc.destroy();
+  }
 }
 
 let n = 0;
@@ -110,11 +120,37 @@ describe('buildPdf', () => {
     await expect(buildPdf([ref('x', 0)], src)).rejects.toMatchObject({ code: 'sourceMissing', params: { id: 'x' } });
   });
 
-  it('refuses a file that is encrypted with an owner password only', async () => {
+  it('saves a file that is encrypted with an owner password only, without protection', async () => {
     const bytes = new Uint8Array(await readFile(new URL('../../tests/files/owner-encrypted.pdf', import.meta.url)));
-    await expect(buildPdf([ref('o', 0)], { o: source(bytes, 'gesperrt.pdf') })).rejects.toMatchObject({
-      code: 'encrypted',
-    });
+    const out = await buildPdf([ref('o', 0)], { o: source(bytes, 'gesperrt.pdf') });
+    expect(await describePdf(out)).toHaveLength(1);
+    expect(await isProtected(out)).toBe(false);
+  });
+
+  it('saves a password-protected file when it is given the password, without protection', async () => {
+    const bytes = await makeProtectedPdf('geheim');
+    const out = await buildPdf([ref('e', 0)], { e: { ...source(bytes, 'geheim.pdf'), password: 'geheim' } });
+    expect((await describePdf(out))[0].width).toBe(400);
+    expect(await isProtected(out)).toBe(false);
+  });
+
+  it('merges a protected file with a normal one', async () => {
+    const src = {
+      e: { ...source(await makeProtectedPdf('geheim'), 'geheim.pdf'), password: 'geheim' },
+      b: source(await makePdf([{ width: 601 }])),
+    };
+    const out = await buildPdf([ref('b', 0), ref('e', 0)], src);
+    expect((await describePdf(out)).map((p) => p.width)).toEqual([601, 400]);
+    expect(await isProtected(out)).toBe(false);
+  });
+
+  it('refuses a protected file whose password is missing or wrong', async () => {
+    const bytes = await makeProtectedPdf('geheim');
+    for (const password of [undefined, 'falsch']) {
+      await expect(
+        buildPdf([ref('e', 0)], { e: { ...source(bytes, 'geheim.pdf'), password } }),
+      ).rejects.toMatchObject({ code: 'encrypted', params: { name: 'geheim.pdf' } });
+    }
   });
 
   it('refuses encrypted sources instead of writing broken pages', async () => {
@@ -124,6 +160,7 @@ describe('buildPdf', () => {
       params: { name: 'geheim.pdf' },
     });
   });
+
 });
 
 describe('buildPdf keeps what belongs to the pages', () => {

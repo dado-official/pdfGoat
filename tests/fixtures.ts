@@ -145,3 +145,15 @@ export async function describeRichPdf(bytes: Uint8Array): Promise<RichPdf> {
     .map((f) => `${f.getName()}=${'getText' in f ? (f as { getText(): string | undefined }).getText() : (f as unknown as { isChecked(): boolean }).isChecked()}`);
   return { pages, outline, fields, title, producer, pageObjects };
 }
+
+/** A real PDF with one 400 x 300 page, locked with AES-256: it opens only with `password`. */
+export async function makeProtectedPdf(password = 'geheim'): Promise<Uint8Array> {
+  const { PDFDocument: MuPdf } = await import('mupdf');
+  const plain = await makePdf([{ width: 400, height: 300, label: 'secret' }]);
+  const doc = new MuPdf(plain);
+  try {
+    return doc.saveToBuffer(`encrypt=aes-256,user-password=${password},owner-password=${password}-owner`).asUint8Array().slice();
+  } finally {
+    doc.destroy();
+  }
+}

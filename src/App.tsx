@@ -1,4 +1,5 @@
 import { useCallback, useReducer, useRef, useState } from 'react';
+import { AppError } from './core/errors';
 import { outputBase, partName } from './core/ranges';
 import { toMegabytes } from './core/limits';
 import { editorReducer, initialState, selectedInOrder } from './state/editor';
@@ -9,6 +10,7 @@ import { download } from './ui/download';
 import GoatMark from './ui/GoatMark';
 import { useFileDrop, useShortcuts } from './ui/useWindowEvents';
 import DropZone from './features/open/DropZone';
+import PasswordDialog from './features/open/PasswordDialog';
 import PageGrid from './features/organize/PageGrid';
 import Preview from './features/organize/Preview';
 import Toolbar from './features/organize/Toolbar';
@@ -29,6 +31,7 @@ export default function App() {
   const [notice, setNotice] = useState('');
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [splitOpen, setSplitOpen] = useState(false);
+  const [passwordAsk, setPasswordAsk] = useState<{ name: string; wrong: boolean; answer: (p: string | null) => void } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const { pages, selected } = state;
@@ -36,6 +39,25 @@ export default function App() {
   const docCount = new Set(pages.map((p) => p.docId)).size;
   const previewIndex = pages.findIndex((p) => p.id === previewId);
   const openFilePicker = () => fileInput.current?.click();
+
+  /** Opens a file; protected files ask for their password until it fits or the user skips them. */
+  const openWithPassword = useCallback(async (file: File): Promise<OpenedPdf | null> => {
+    let password: string | undefined;
+    for (;;) {
+      try {
+        return await openPdf(file, password);
+      } catch (err) {
+        if (!(err instanceof AppError) || (err.code !== 'passwordRequired' && err.code !== 'passwordWrong')) throw err;
+        const wrong = err.code === 'passwordWrong';
+        const answer = await new Promise<string | null>((resolve) =>
+          setPasswordAsk({ name: file.name, wrong, answer: resolve }),
+        );
+        setPasswordAsk(null);
+        if (answer === null) return null;
+        password = answer;
+      }
+    }
+  }, []);
 
   const addFiles = useCallback(
     async (list: FileList | File[]) => {
@@ -52,8 +74,10 @@ export default function App() {
       for (const file of files) {
         setBusy(t('busy.opening', { name: file.name }));
         try {
-          const result = await openPdf(file);
+          const result = await openWithPassword(file);
+          if (!result) continue;
           opened.push(result);
+          if (result.encrypted) notices.push(t('warning.encrypted', { name: file.name }));
           if (result.large) notices.push(t('warning.large', { name: file.name, size: toMegabytes(file.size) }));
         } catch (err) {
           errors.push(errorText(err));
@@ -66,7 +90,7 @@ export default function App() {
       setDocs((d) => ({ ...d, ...Object.fromEntries(opened.map((o) => [o.doc.id, o.doc])) }));
       dispatch({ type: 'add', pages: opened.flatMap((o) => o.pages) });
     },
-    [t, errorText],
+    [t, errorText, openWithPassword],
   );
 
   function closeAll() {
@@ -137,7 +161,7 @@ export default function App() {
     } else if (e.key === 'Escape') {
       dispatch({ type: 'clearSelection' });
     }
-  }, !previewId && !splitOpen);
+  }, !previewId && !splitOpen && !passwordAsk);
 
   const previewPage = previewIndex >= 0 ? pages[previewIndex] : null;
   const allSelected = pages.length > 0 && selected.size === pages.length;
@@ -276,6 +300,10 @@ export default function App() {
             if (next) setPreviewId(next.id);
           }}
         />
+      )}
+
+      {passwordAsk && (
+        <PasswordDialog name={passwordAsk.name} wrong={passwordAsk.wrong} onResult={passwordAsk.answer} />
       )}
 
       {splitOpen && (
