@@ -6,8 +6,8 @@ import {
   selectedInOrder,
   type EditorAction,
   type EditorState,
-} from '../src/lib/editor';
-import type { PageRef } from '../src/lib/types';
+} from './editor';
+import type { PageRef } from '../core/types';
 
 const page = (id: string, rotation = 0): PageRef => ({ id, docId: 'd1', srcIndex: 0, rotation });
 const ids = (s: EditorState) => s.pages.map((p) => p.id);
@@ -155,6 +155,48 @@ describe('undo', () => {
     s = editorReducer(s, { type: 'toggleSelect', id: 'b' });
     s = editorReducer(s, { type: 'undo' });
     expect(s.selected.size).toBe(0);
+  });
+});
+
+describe('redo', () => {
+  it('restores undone steps in order', () => {
+    let s = withPages('a', 'b', 'c');
+    s = editorReducer(s, { type: 'remove', ids: ['b'] });
+    s = editorReducer(s, { type: 'reverse' });
+    s = editorReducer(s, { type: 'undo' });
+    s = editorReducer(s, { type: 'undo' });
+    expect(ids(s)).toEqual(['a', 'b', 'c']);
+    s = editorReducer(s, { type: 'redo' });
+    expect(ids(s)).toEqual(['a', 'c']);
+    s = editorReducer(s, { type: 'redo' });
+    expect(ids(s)).toEqual(['c', 'a']);
+    expect(editorReducer(s, { type: 'redo' })).toBe(s);
+  });
+
+  it('can be undone again', () => {
+    let s = withPages('a', 'b');
+    s = editorReducer(s, { type: 'reverse' });
+    s = editorReducer(s, { type: 'undo' });
+    s = editorReducer(s, { type: 'redo' });
+    s = editorReducer(s, { type: 'undo' });
+    expect(ids(s)).toEqual(['a', 'b']);
+  });
+
+  it('is cleared by a new change', () => {
+    let s = withPages('a', 'b');
+    s = editorReducer(s, { type: 'reverse' });
+    s = editorReducer(s, { type: 'undo' });
+    s = editorReducer(s, { type: 'rotate', ids: ['a'], delta: 90 });
+    expect(s.future).toEqual([]);
+    expect(editorReducer(s, { type: 'redo' })).toBe(s);
+  });
+
+  it('is kept when only the selection changes', () => {
+    let s = withPages('a', 'b');
+    s = editorReducer(s, { type: 'reverse' });
+    s = editorReducer(s, { type: 'undo' });
+    s = editorReducer(s, { type: 'toggleSelect', id: 'a' });
+    expect(ids(editorReducer(s, { type: 'redo' }))).toEqual(['b', 'a']);
   });
 });
 

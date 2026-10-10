@@ -26,6 +26,12 @@ dist-ssr
 # Fertige Builds/Downloads, nicht ins Repo
 *.zip
 
+# PDF.js-Dateien, werden vor dev/build aus node_modules kopiert
+public/pdfjs/
+
 # Testergebnisse
 test-results/
 playwright-report/
+
+# Wissensgraph (graphify), wird lokal erzeugt
+graphify-out/

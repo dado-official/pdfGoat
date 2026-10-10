@@ -1,27 +1,46 @@
 // Writes new PDFs with pdf-lib. No DOM and no PDF.js here, so it runs in Node tests too.
 import type { PDFDocument } from 'pdf-lib';
-import type { PageRef } from './types';
+import { AppError } from '../core/errors';
+import type { PageRef } from '../core/types';
 
-/** What building needs from an opened file; the pdf-lib document is cached on first use. */
+/** What building needs from an opened file. */
 export interface BuildSource {
-  bytes: Uint8Array;
-  lib: PDFDocument | null;
+  /** File name, only used in error messages. */
+  name?: string;
+  /** Returns the file's bytes. Called once, when the file is first needed for saving. */
+  read: () => Promise<Uint8Array>;
 }
 
 // pdf-lib and fflate are only needed when saving, so they load on demand.
 const loadPdfLib = () => import('pdf-lib');
 
-async function libDoc(src: BuildSource): Promise<PDFDocument> {
-  if (!src.lib) {
-    const { PDFDocument } = await loadPdfLib();
-    src.lib = await PDFDocument.load(src.bytes, { ignoreEncryption: true });
+// Parsed pdf-lib documents, kept per source so repeated saves do not parse the file again.
+// A WeakMap frees them together with the source when the file is closed.
+const parsed = new WeakMap<BuildSource, Promise<PDFDocument>>();
+
+function libDoc(src: BuildSource): Promise<PDFDocument> {
+  let doc = parsed.get(src);
+  if (!doc) {
+    doc = parse(src);
+    parsed.set(src, doc);
+    // A failed attempt must not be cached, so the next save tries again.
+    doc.catch(() => parsed.delete(src));
   }
-  return src.lib;
+  return doc;
+}
+
+async function parse(src: BuildSource): Promise<PDFDocument> {
+  const { PDFDocument } = await loadPdfLib();
+  const doc = await PDFDocument.load(await src.read(), { ignoreEncryption: true });
+  // Encrypted files must not be rebuilt: their streams would be copied without decrypting
+  // them, which produces broken pages without any error.
+  if (doc.isEncrypted) throw new AppError('encrypted', { name: src.name ?? '' });
+  return doc;
 }
 
 /** Builds a new PDF from a list of pages (possibly from several documents). */
 export async function buildPdf(pages: PageRef[], sources: Record<string, BuildSource>): Promise<Uint8Array> {
-  if (!pages.length) throw new Error('Keine Seiten zum Speichern.');
+  if (!pages.length) throw new AppError('noPages');
   const { PDFDocument, degrees } = await loadPdfLib();
   const out = await PDFDocument.create();
   out.setProducer('PDFgoat');
@@ -37,7 +56,7 @@ export async function buildPdf(pages: PageRef[], sources: Record<string, BuildSo
   const copied = new Map<string, Awaited<ReturnType<typeof out.copyPages>>[number]>();
   for (const [docId, list] of bySource) {
     const source = sources[docId];
-    if (!source) throw new Error(`Quelldatei ${docId} fehlt.`);
+    if (!source) throw new AppError('sourceMissing', { id: docId });
     const result = await out.copyPages(await libDoc(source), list.map((p) => p.srcIndex));
     list.forEach((p, i) => copied.set(p.id, result[i]));
   }

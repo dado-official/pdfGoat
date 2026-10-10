@@ -1,6 +1,6 @@
 # PDFgoat – Entwicklungsplan
 
-Stand: 10.10.2026. Status: Entwurf, noch nicht committet.
+Stand: 10.10.2026. M0 und M1 sind umgesetzt (siehe [Umsetzungsstand](#umsetzungsstand)).
 
 ## Ziel
 
@@ -53,12 +53,11 @@ Sortieren, Drehen, Löschen und Zusammenfügen ändern nur die Liste `pages`. De
 ```
 pdfGoat/
 ├─ public/
-│  ├─ _headers              Sicherheits-Header für Cloudflare Pages (CSP)
-│  └─ pdfjs/                Schrift- und Zeichentabellen von PDF.js
+│  └─ pdfjs/                Laufzeitdateien von PDF.js (beim Build kopiert, nicht im Repo)
 ├─ src/
-│  ├─ core/                 pageRanges, documentModel, buildPdf (rein, gut testbar)
-│  ├─ pdf/                  pdfjs-Adapter, pdf-lib-Adapter, worker/
-│  ├─ state/                Reducer, Aktionen, Context, Undo/Redo
+│  ├─ core/                 ranges, limits, errors, types (rein, gut testbar)
+│  ├─ pdf/                  pdfjs.ts (öffnen, rendern), build.ts (pdf-lib)
+│  ├─ state/                editor.ts: Reducer mit Undo/Redo
 │  ├─ features/
 │  │  ├─ open/              Datei öffnen, Drag & Drop
 │  │  ├─ organize/          Sortieren, Drehen, Löschen
@@ -67,12 +66,14 @@ pdfGoat/
 │  │  ├─ forms/             Formulare ausfüllen
 │  │  └─ tools/             Komprimieren, OCR, Bild ↔ PDF
 │  ├─ ui/                   gemeinsame Bausteine (Buttons, Dialoge, Layout)
-│  ├─ i18n/                 de.json, en.json
+│  ├─ i18n/                 de.ts, en.ts, translate.ts, I18nProvider
 │  ├─ pages/                Start, Offenlegung, Datenschutz, Lizenzen
 │  └─ main.tsx
 ├─ tests/
 │  ├─ e2e/                  Playwright-Tests
-│  └─ fixtures/             Test-PDFs
+│  ├─ fixtures.ts           erzeugt Test-PDFs im Code
+│  └─ files/                fertige Test-PDFs (z. B. verschlüsselt)
+├─ scripts/                 copy-pdfjs-assets.mjs
 ├─ docs/PLAN.md
 └─ .github/workflows/ci.yml
 ```
@@ -155,7 +156,7 @@ Reihenfolge nach Aufwand:
 
 - **GitHub Actions bei jedem Pull Request:** Lint, Typprüfung, Unit-Tests, Build, Playwright-Tests.
 - **Cloudflare Pages:** `main` wird automatisch veröffentlicht, jeder Pull Request bekommt eine Vorschau-Adresse.
-- **Sicherheits-Header** in `public/_headers`: strenge Content-Security-Policy, `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`.
+- **Sicherheits-Header** in `dist/_headers` (vom Build erzeugt): strenge Content-Security-Policy, `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`.
 
 ## Risiken und Grenzen
 
@@ -165,8 +166,25 @@ Reihenfolge nach Aufwand:
 - **Bestehenden Text umschreiben** wie in Acrobat ist nicht im Umfang, ebenso Word ↔ PDF.
 - **Rechtliches:** Die Seiten in M2 sind sorgfältig, aber keine Rechtsberatung. Bei Spenden oder Sponsoring sind volles Impressum und Steuerfrage neu zu klären.
 
+## Umsetzungsstand
+
+**M0 und M1 umgesetzt (10.10.2026).** Abweichungen vom ursprünglichen Plan, jeweils mit Grund:
+
+- **Texte als `de.ts`/`en.ts` statt JSON:** TypeScript prüft so beim Build, dass jeder Schlüssel existiert und beide Sprachen vollständig sind.
+- **CSP in der Seite und in `dist/_headers`, beides aus `vite.config.ts` erzeugt:** Die Policy gilt damit auf jedem Hoster und in den Browser-Tests, und es gibt nur eine Quelle. Eine Datei `public/_headers` gibt es deshalb nicht.
+- **Dateibytes werden nicht im Speicher gehalten:** Gespeichert wird nur der Verweis auf die Datei, gelesen wird beim Öffnen (für PDF.js) und einmal beim ersten Speichern (für pdf-lib).
+- **Verschlüsselte PDFs werden abgelehnt,** auch solche, die sich ohne Passwort öffnen lassen. pdf-lib kann sie nicht entschlüsseln und würde leere Seiten speichern.
+- **Größenlimits:** Warnung ab 100 MB, Ablehnung über 500 MB (`src/core/limits.ts`).
+- **Test-PDFs** werden in `tests/fixtures.ts` im Code erzeugt, die echte verschlüsselte Datei liegt in `tests/files/`.
+
+Noch nicht umgesetzt:
+
+- **Export im Web Worker.** Bei den bisherigen Funktionen blockiert der Export nur kurz. Sinnvoll wird er mit Komprimieren und OCR (M5), spätestens dann kommt er.
+- **Hinweis auf verlorene Formularfelder und Lesezeichen** beim Speichern. Gehört zu M4 (Formulare).
+- **Automatischer Test der Größenlimits im Browser.** Die Logik ist per Unit-Test abgedeckt, eine 500-MB-Datei im Browser-Test wäre zu langsam.
+- **Cloudflare Pages verbinden** (braucht dein Cloudflare-Konto, Schritte stehen im README).
+
 ## Offene Punkte
 
-- Wo liegt der Cloud-Prototyp (Branch oder Ordner)? Er ist lokal noch nicht vorhanden.
 - Git-Anmeldung für GitHub auf diesem Rechner einrichten (derzeit kein Zugriff auf `origin`).
 - Domain prüfen und sichern.

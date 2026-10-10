@@ -1,5 +1,5 @@
 // Test PDFs built with pdf-lib. Every page gets a unique width, so it can be recognised in any output.
-import { PDFDocument, StandardFonts, degrees } from 'pdf-lib';
+import { PDFDocument, PDFHexString, StandardFonts, degrees } from 'pdf-lib';
 
 export interface FixturePage {
   width: number;
@@ -24,4 +24,18 @@ export async function makePdf(pages: FixturePage[]): Promise<Uint8Array> {
 export async function describePdf(bytes: Uint8Array): Promise<{ width: number; rotation: number }[]> {
   const doc = await PDFDocument.load(bytes);
   return doc.getPages().map((p) => ({ width: Math.round(p.getWidth()), rotation: p.getRotation().angle }));
+}
+
+/**
+ * A PDF whose trailer declares encryption, like a password-protected file.
+ * The key data is made up, so no reader can decrypt it; that is enough to test that it is refused.
+ */
+export async function makeEncryptedPdf(): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  doc.addPage([400, 400]);
+  const key = PDFHexString.of('00'.repeat(32));
+  doc.context.trailerInfo.Encrypt = doc.context.register(
+    doc.context.obj({ Filter: 'Standard', V: 1, R: 2, O: key, U: key, P: -44 }),
+  );
+  return doc.save({ useObjectStreams: false });
 }

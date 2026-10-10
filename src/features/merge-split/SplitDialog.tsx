@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { chunk, parseRanges } from '../lib/ranges';
+import { chunk, parseRanges } from '../../core/ranges';
+import { useI18n } from '../../i18n/context';
 
 /** One group of 0-based page positions per output file, or the current selection. */
 export type SplitPlan = number[][] | 'selection';
@@ -14,6 +15,7 @@ interface Props {
 type Mode = 'selection' | 'ranges' | 'every';
 
 export default function SplitDialog({ total, selectedCount, onSplit, onClose }: Props) {
+  const { t, tn, errorText } = useI18n();
   const dialog = useRef<HTMLDialogElement>(null);
   const [mode, setMode] = useState<Mode>(selectedCount ? 'selection' : 'ranges');
   const [ranges, setRanges] = useState('');
@@ -36,7 +38,7 @@ export default function SplitDialog({ total, selectedCount, onSplit, onClose }: 
       onSplit(plan());
       dialog.current?.close();
     } catch (err) {
-      setError((err as Error).message);
+      setError(errorText(err));
     }
   }
 
@@ -45,7 +47,7 @@ export default function SplitDialog({ total, selectedCount, onSplit, onClose }: 
   return (
     <dialog ref={dialog} className="split" onClose={onClose} aria-labelledby="split-title">
       <form onSubmit={submit}>
-        <h2 id="split-title">Aufteilen</h2>
+        <h2 id="split-title">{t('split.title')}</h2>
 
         <label className="option">
           <input
@@ -56,21 +58,17 @@ export default function SplitDialog({ total, selectedCount, onSplit, onClose }: 
             disabled={!selectedCount}
           />
           <span>
-            Ausgewählte Seiten als eine PDF
-            <small>
-              {selectedCount
-                ? `${selectedCount} Seite(n) ausgewählt`
-                : 'Zuerst Seiten anklicken, um sie auszuwählen'}
-            </small>
+            {t('split.selection')}
+            <small>{selectedCount ? tn('split.selected', selectedCount) : t('split.selection.empty')}</small>
           </span>
         </label>
 
         <label className="option">
           <input type="radio" name="mode" checked={mode === 'ranges'} onChange={() => setMode('ranges')} />
           <span>
-            Nach Seitenbereichen
+            {t('split.ranges')}
             <small>
-              Jeder Bereich wird eine eigene PDF, z. B. <code>1-3, 4, 5-</code>
+              {t('split.ranges.hint')} <code>1-3, 4, 5-</code>
             </small>
           </span>
         </label>
@@ -82,14 +80,14 @@ export default function SplitDialog({ total, selectedCount, onSplit, onClose }: 
             value={ranges}
             onChange={(e) => setRanges(e.target.value)}
             placeholder={`1-${half}, ${half + 1}-${total}`}
-            aria-label="Seitenbereiche"
+            aria-label={t('split.ranges.label')}
           />
         )}
 
         <label className="option">
           <input type="radio" name="mode" checked={mode === 'every'} onChange={() => setMode('every')} />
           <span>
-            Alle{' '}
+            {t('split.every.before')}{' '}
             <input
               className="num"
               type="number"
@@ -99,8 +97,8 @@ export default function SplitDialog({ total, selectedCount, onSplit, onClose }: 
               onChange={(e) => setEvery(Number(e.target.value))}
               onFocus={() => setMode('every')}
             />{' '}
-            Seiten eine neue PDF
-            <small>Mit 1 wird jede Seite eine eigene Datei</small>
+            {t('split.every.after')}
+            <small>{t('split.every.hint')}</small>
           </span>
         </label>
 
@@ -109,13 +107,11 @@ export default function SplitDialog({ total, selectedCount, onSplit, onClose }: 
             {error}
           </p>
         )}
-        <p className="hint">
-          Mehrere Dateien werden als ZIP heruntergeladen. Seitennummern beziehen sich auf die aktuelle Reihenfolge.
-        </p>
+        <p className="hint">{t('split.hint')}</p>
 
         <div className="dialog-buttons">
-          <button type="button" onClick={() => dialog.current?.close()}>Abbrechen</button>
-          <button type="submit" className="primary">Aufteilen & herunterladen</button>
+          <button type="button" onClick={() => dialog.current?.close()}>{t('split.cancel')}</button>
+          <button type="submit" className="primary">{t('split.submit')}</button>
         </div>
       </form>
     </dialog>

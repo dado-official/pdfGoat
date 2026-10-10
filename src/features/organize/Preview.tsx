@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { renderPage, type SourceDoc } from '../lib/pdf';
-import type { PageRef } from '../lib/types';
+import type { PageRef } from '../../core/types';
+import { useI18n } from '../../i18n/context';
+import { renderPage, type SourceDoc } from '../../pdf/pdfjs';
 
 interface Props {
   doc: SourceDoc;
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export default function Preview({ doc, page, number, total, onClose, onStep }: Props) {
+  const { t } = useI18n();
   const dialog = useRef<HTMLDialogElement>(null);
   // Remember which page/rotation the image belongs to, so a stale one is never shown.
   const key = `${page.id}:${page.rotation}`;
@@ -26,11 +28,14 @@ export default function Preview({ doc, page, number, total, onClose, onStep }: P
     let cancelled = false;
     let made: string | null = null;
     const width = Math.min(window.innerWidth - 64, 1000);
-    renderPage(doc, page.srcIndex, { width, rotation: page.rotation }).then((u) => {
-      made = u;
-      if (cancelled) URL.revokeObjectURL(u);
-      else setRendered({ key, url: u });
-    });
+    renderPage(doc, page.srcIndex, { width, rotation: page.rotation })
+      .then((u) => {
+        made = u;
+        if (cancelled) URL.revokeObjectURL(u);
+        else setRendered({ key, url: u });
+      })
+      // Leave the "rendering" text; the page can still be exported.
+      .catch((err) => console.warn('Preview failed', err));
     return () => {
       cancelled = true;
       if (made) URL.revokeObjectURL(made);
@@ -46,16 +51,16 @@ export default function Preview({ doc, page, number, total, onClose, onStep }: P
         if (e.key === 'ArrowLeft') onStep(-1);
         if (e.key === 'ArrowRight') onStep(1);
       }}
-      aria-label={`Vorschau Seite ${number}`}
+      aria-label={t('preview.label', { number })}
     >
       <header>
-        <button onClick={() => onStep(-1)} disabled={number <= 1} aria-label="Vorherige Seite">←</button>
-        <span>Seite {number} von {total}</span>
-        <button onClick={() => onStep(1)} disabled={number >= total} aria-label="Nächste Seite">→</button>
-        <button className="close" onClick={() => dialog.current?.close()} aria-label="Schließen">✕</button>
+        <button onClick={() => onStep(-1)} disabled={number <= 1} aria-label={t('preview.prev')}>←</button>
+        <span>{t('preview.position', { number, total })}</span>
+        <button onClick={() => onStep(1)} disabled={number >= total} aria-label={t('preview.next')}>→</button>
+        <button className="close" onClick={() => dialog.current?.close()} aria-label={t('preview.close')}>✕</button>
       </header>
       <div className="preview-body">
-        {url ? <img src={url} alt={`Seite ${number}`} /> : <p>Wird gerendert …</p>}
+        {url ? <img src={url} alt={t('preview.alt', { number })} /> : <p>{t('preview.rendering')}</p>}
       </div>
     </dialog>
   );

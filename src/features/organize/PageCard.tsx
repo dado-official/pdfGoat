@@ -1,5 +1,7 @@
-import type { DragEvent, MouseEvent } from 'react';
-import type { PageRef } from '../lib/types';
+import { useRef, type DragEvent, type MouseEvent } from 'react';
+import type { PageRef } from '../../core/types';
+import { useI18n } from '../../i18n/context';
+import { useWhenVisible } from '../../ui/useWhenVisible';
 
 interface Props {
   page: PageRef;
@@ -10,6 +12,8 @@ interface Props {
   selected: boolean;
   dragging: boolean;
   dropSide: 'before' | 'after' | null;
+  /** Called when the card is about to be seen and has no preview image yet. */
+  onNeedThumb: () => void;
   onSelect: (e: MouseEvent) => void;
   onRotate: () => void;
   onDelete: () => void;
@@ -22,13 +26,17 @@ interface Props {
 }
 
 export default function PageCard(props: Props) {
+  const { t } = useI18n();
   const { page, number, thumb, docName, showDoc, selected, dragging, dropSide } = props;
+  const root = useRef<HTMLDivElement>(null);
+  useWhenVisible(root, !thumb, props.onNeedThumb);
   const classes = ['card', selected && 'selected', dragging && 'dragging', dropSide && `drop-${dropSide}`]
     .filter(Boolean)
     .join(' ');
 
   return (
     <div
+      ref={root}
       className={classes}
       draggable
       role="listitem"
@@ -40,7 +48,7 @@ export default function PageCard(props: Props) {
       <button
         className="card-thumb"
         aria-pressed={selected}
-        aria-label={`Seite ${number} ${selected ? 'abwählen' : 'auswählen'}`}
+        aria-label={t(selected ? 'card.deselect' : 'card.select', { number })}
         onClick={props.onSelect}
         onDoubleClick={props.onPreview}
       >
@@ -66,11 +74,11 @@ export default function PageCard(props: Props) {
       </div>
 
       <div className="card-actions">
-        <button title="Nach links" aria-label="Nach links verschieben" onClick={() => props.onMove(-1)}>←</button>
-        <button title="Drehen" aria-label="Im Uhrzeigersinn drehen" onClick={props.onRotate}>↻</button>
-        <button title="Vorschau" aria-label="Große Vorschau" onClick={props.onPreview}>⤢</button>
-        <button title="Löschen" aria-label="Seite löschen" className="danger" onClick={props.onDelete}>✕</button>
-        <button title="Nach rechts" aria-label="Nach rechts verschieben" onClick={() => props.onMove(1)}>→</button>
+        <button title={t('card.moveLeft.title')} aria-label={t('card.moveLeft')} onClick={() => props.onMove(-1)}>←</button>
+        <button title={t('card.rotate.title')} aria-label={t('card.rotate')} onClick={props.onRotate}>↻</button>
+        <button title={t('card.preview.title')} aria-label={t('card.preview')} onClick={props.onPreview}>⤢</button>
+        <button title={t('card.delete.title')} aria-label={t('card.delete')} className="danger" onClick={props.onDelete}>✕</button>
+        <button title={t('card.moveRight.title')} aria-label={t('card.moveRight')} onClick={() => props.onMove(1)}>→</button>
       </div>
     </div>
   );

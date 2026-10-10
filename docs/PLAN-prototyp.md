@@ -1,4 +1,6 @@
-# PDFgoat – Plan
+# PDFgoat – Plan des Prototyps (historisch)
+
+> Dieses Dokument beschreibt den ersten Prototyp. Ordnerstruktur und Details sind seit M0/M1 überholt, der aktuelle Plan steht in [PLAN.md](PLAN.md).
 
 Arbeitsweise: erst planen, dann umsetzen, dann testen. Dieses Dokument wird vor jedem neuen Feature ergänzt.
 

@@ -7,7 +7,7 @@
   },
   "overrides": [
     {
-      "files": ["e2e/**"],
+      "files": ["tests/e2e/**"],
       "rules": {
         "react/rules-of-hooks": "off"
       }

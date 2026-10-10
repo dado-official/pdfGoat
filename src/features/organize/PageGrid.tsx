@@ -1,14 +1,15 @@
 import { useState, type DragEvent } from 'react';
-import type { EditorAction, EditorState } from '../lib/editor';
-import type { SourceDoc } from '../lib/pdf';
-import type { PageRef } from '../lib/types';
-import { thumbKey } from '../hooks/useThumbnails';
+import type { PageRef } from '../../core/types';
+import type { SourceDoc } from '../../pdf/pdfjs';
+import type { EditorAction, EditorState } from '../../state/editor';
+import { thumbKey } from './useThumbnails';
 import PageCard from './PageCard';
 
 interface Props {
   state: EditorState;
   docs: Record<string, SourceDoc>;
   thumbs: Record<string, string>;
+  onNeedThumb: (page: PageRef) => void;
   dispatch: (action: EditorAction) => void;
   onPreview: (id: string) => void;
 }
@@ -16,11 +17,11 @@ interface Props {
 type DropTarget = { id: string; side: 'before' | 'after' } | null;
 
 /** The page cards, including drag & drop reordering (dragging a selected page moves the whole selection). */
-export default function PageGrid({ state, docs, thumbs, dispatch, onPreview }: Props) {
+export default function PageGrid({ state, docs, thumbs, onNeedThumb, dispatch, onPreview }: Props) {
   const { pages, selected } = state;
   const [dragIds, setDragIds] = useState<string[]>([]);
   const [dropTarget, setDropTarget] = useState<DropTarget>(null);
-  const showDoc = Object.keys(docs).length > 1;
+  const showDoc = new Set(pages.map((p) => p.docId)).size > 1;
 
   function dragStart(page: PageRef, e: DragEvent) {
     setDragIds(selected.has(page.id) ? pages.filter((p) => selected.has(p.id)).map((p) => p.id) : [page.id]);
@@ -63,6 +64,7 @@ export default function PageGrid({ state, docs, thumbs, dispatch, onPreview }: P
           selected={selected.has(page.id)}
           dragging={dragIds.includes(page.id)}
           dropSide={dropTarget?.id === page.id ? dropTarget.side : null}
+          onNeedThumb={() => onNeedThumb(page)}
           onSelect={(e) => dispatch({ type: 'toggleSelect', id: page.id, range: e.shiftKey })}
           onRotate={() => dispatch({ type: 'rotate', ids: [page.id], delta: 90 })}
           onDelete={() => dispatch({ type: 'remove', ids: [page.id] })}

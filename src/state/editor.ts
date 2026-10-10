@@ -1,5 +1,5 @@
 // Pure state logic for the page list: no DOM, no PDF. Everything here is unit-tested.
-import type { PageRef } from './types';
+import type { PageRef } from '../core/types';
 
 export interface EditorState {
   /** The working list, in output order. */
@@ -7,6 +7,8 @@ export interface EditorState {
   selected: ReadonlySet<string>;
   /** Earlier page lists for undo, oldest first. */
   history: PageRef[][];
+  /** Page lists that were undone, for redo; the next one to restore is last. */
+  future: PageRef[][];
   /** Anchor for shift-click range selection. */
   anchor: string | null;
 }
@@ -22,19 +24,21 @@ export type EditorAction =
   | { type: 'selectAll' }
   | { type: 'clearSelection' }
   | { type: 'undo' }
+  | { type: 'redo' }
   | { type: 'reset' };
 
 export const HISTORY_LIMIT = 50;
 
-export const initialState: EditorState = { pages: [], selected: new Set(), history: [], anchor: null };
+export const initialState: EditorState = { pages: [], selected: new Set(), history: [], future: [], anchor: null };
 
-/** Replaces the page list, records an undo step and drops selections of pages that are gone. */
+/** Replaces the page list, records an undo step, clears redo and drops selections of pages that are gone. */
 function commit(state: EditorState, pages: PageRef[]): EditorState {
   if (pages === state.pages) return state;
   return {
     ...state,
     pages,
     history: [...state.history, state.pages].slice(-HISTORY_LIMIT),
+    future: [],
     selected: keepExisting(state.selected, pages),
   };
 }
@@ -122,7 +126,20 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         ...state,
         pages: prev,
         history: state.history.slice(0, -1),
+        future: [...state.future, state.pages],
         selected: keepExisting(state.selected, prev),
+      };
+    }
+
+    case 'redo': {
+      const next = state.future.at(-1);
+      if (!next) return state;
+      return {
+        ...state,
+        pages: next,
+        history: [...state.history, state.pages].slice(-HISTORY_LIMIT),
+        future: state.future.slice(0, -1),
+        selected: keepExisting(state.selected, next),
       };
     }
 
