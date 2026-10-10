@@ -1,0 +1,11 @@
+import react from '@vitejs/plugin-react'
+import { defineConfig } from 'vite'
+
+// https://vite.dev/config/
+export default defineConfig({
+  plugins: [react()],
+  // Relative paths so the build works on Netlify, Cloudflare Pages and GitHub Pages (subfolder).
+  base: './',
+  // PDF.js alone is ~500 kB; that is expected for this app.
+  build: { chunkSizeWarningLimit: 1500 },
+})
