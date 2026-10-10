@@ -376,6 +376,12 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
         setSelectedId(null);
         return;
       }
+      // A change to existing text or a picture is taken back the same way.
+      if (p.edits?.some((e) => e.id === selectedId)) {
+        editPage(p, p.edits.filter((e) => e.id !== selectedId));
+        setSelectedId(null);
+        return;
+      }
     }
   }
 

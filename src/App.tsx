@@ -13,7 +13,7 @@ import {
 } from './state/workspace';
 import { zip } from './pdf/build';
 import { buildPdf, CancelledError, type JobOptions } from './pdf/engine';
-import { closePdf, openPdf, type OpenedPdf, type SourceDoc } from './pdf/view';
+import { closePdf, getOutline, openPdf, type OpenedPdf, type SourceDoc } from './pdf/view';
 import { useI18n } from './i18n/context';
 import { download } from './ui/download';
 import GoatMark from './ui/GoatMark';
@@ -27,7 +27,8 @@ import { registerOffline } from './pwa';
 import { allowWriting, canPickWithHandles, pickPdfs, receiveLaunchedFiles, writeInto, type OpenedFile } from './features/open/fileAccess';
 import PageDialog from './features/edit/PageDialog';
 import BookmarksDialog from './features/bookmarks/BookmarksDialog';
-import { resolveBookmarks } from './core/bookmarks';
+import { fromPlaced, mergeBookmarks, remapBookmarks, resolveBookmarks, type Bookmark } from './core/bookmarks';
+import { placeOutline } from './core/outline';
 import BatchDialog from './features/batch/BatchDialog';
 import OcrDialog from './features/ocr/OcrDialog';
 import { ocrWidth, recognizePages, type OcrLang } from './pdf/ocr';
@@ -252,11 +253,37 @@ export default function App() {
     setNotice('');
   }
 
-  function mergeTabs(ids: string[]) {
+  async function mergeTabs(ids: string[]) {
     const id = `tab${nextTab.current++}`;
     let n = 0;
-    const pages = ids.flatMap((from) => clonePages(ws.tabs.find((x) => x.id === from)?.editor.pages ?? [], () => `${id}-p${n++}`));
-    dispatchWs({ type: 'open', id, title: t('tab.merged'), pages });
+    const sources = ids.flatMap((from) => ws.tabs.filter((x) => x.id === from));
+    // The copies of the pages, and which copy stands for which page.
+    const groups = sources.map((src) => ({ src, copies: clonePages(src.editor.pages, () => `${id}-p${n++}`) }));
+    dispatchWs({ type: 'open', id, title: t('tab.merged'), pages: groups.flatMap((g) => g.copies) });
+
+    // Bookmarks that were edited in a tab are carried over. Without any, the bookmarks of the files
+    // are taken over by saving, as before.
+    if (!groups.some((g) => bookmarksOf(g.src.editor))) return;
+    const newId = () => crypto.randomUUID();
+    const merged = await Promise.all(
+      groups.map(async ({ src, copies }) => {
+        const idMap = new Map(src.editor.pages.map((p, i) => [p.id, copies[i].id]));
+        const custom = bookmarksOf(src.editor);
+        let items: Bookmark[];
+        if (custom) items = remapBookmarks(custom, idMap, newId);
+        else {
+          // This tab kept the bookmarks of its files: read them as they stand on its pages.
+          const docIds = [...new Set(src.editor.pages.map((p) => p.docId))].filter((d) => docs[d] && !docs[d].generated);
+          const files = await Promise.all(docIds.map(async (d) => ({ docId: d, name: docs[d].name, nodes: await getOutline(docs[d]).catch(() => []) })));
+          const positions = new Map<string, number>();
+          src.editor.pages.forEach((p, i) => positions.has(`${p.docId}:${p.srcIndex}`) || positions.set(`${p.docId}:${p.srcIndex}`, i));
+          items = fromPlaced(placeOutline(files, positions), copies, newId);
+        }
+        return { title: src.title, items, firstPageId: copies[0]?.id ?? null };
+      }),
+    );
+    // Aimed at the new tab by its id: the user may have switched to another one meanwhile.
+    dispatchWs({ type: 'editor', id, action: { type: 'outline', items: mergeBookmarks(merged, newId) } });
   }
 
   async function run(label: string, task: (job: JobOptions) => Promise<void>) {
@@ -286,9 +313,16 @@ export default function App() {
 
   const base = () => outputBase(ownPages.map((p) => docs[p.docId].name), t('file.merged'));
 
+  /** After saving pages with redactions: say what a redaction does not reach. */
+  const remindOfLeftovers = (list: PageRef[], before = '') => {
+    if (list.some((p) => p.annots?.some((a) => a.kind === 'redact')) && !(clean.metadata && clean.attachments)) setNotice(`${before}${before ? ' ' : ''}${t('redact.leftover')}`);
+    else if (before) setNotice(before);
+  };
+
   const save = () =>
     run(t('busy.saving'), async (job) => {
       download(await buildPdf(pages, docs, { ...job, flatten, date, protect, clean, outline: outlineFor(pages) }), `${base()}.pdf`);
+      remindOfLeftovers(pages);
     });
 
   // Today's date for header and footer texts that contain {date}.
@@ -435,7 +469,7 @@ export default function App() {
     await run(t('busy.saving'), async (job) => {
       const bytes = await buildPdf(pages, docs, { ...job, flatten, date, protect, clean, outline: outlineFor(pages) });
       await writeInto(doc.handle!, bytes);
-      setNotice(t('overwrite.done', { name: doc.name }));
+      remindOfLeftovers(pages, t('overwrite.done', { name: doc.name }));
     });
   }
 

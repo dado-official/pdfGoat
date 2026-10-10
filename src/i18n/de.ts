@@ -612,6 +612,7 @@ export const de = {
   'overwrite.denied': 'Der Browser hat das Schreiben in die Datei nicht erlaubt.',
   'overwrite.done': 'Gespeichert in {name}.',
   'open.pictures': 'Bilder',
+  'redact.leftover': "Geschwärzt wurde der Inhalt der Seiten. Titel von Lesezeichen, Metadaten (Titel, Autor) und Dateianhänge können das Wort noch enthalten. Prüfe sie unter „Schutz und Prüfung“.",
 } as const;
 
 export type MessageKey = keyof typeof de;

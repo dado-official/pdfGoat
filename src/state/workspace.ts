@@ -35,7 +35,8 @@ export type WorkspaceAction =
   | { type: 'close'; id: string }
   | { type: 'activate'; id: string }
   /** Applies an editor action to the active tab. */
-  | { type: 'editor'; action: EditorAction }
+  /** Changes the editor of a tab: the one given, or the active one. */
+  | { type: 'editor'; action: EditorAction; id?: string }
   | { type: 'view'; view: View }
   | { type: 'memory'; id: string; memory: ReaderMemory }
   | { type: 'rename'; id: string; title: string }
@@ -71,7 +72,7 @@ export function workspaceReducer(ws: Workspace, action: WorkspaceAction): Worksp
       return ws.tabs.some((t) => t.id === action.id) ? { ...ws, active: action.id } : ws;
 
     case 'editor':
-      return update(ws, ws.active, (t) => {
+      return update(ws, action.id ?? ws.active, (t) => {
         const editor = editorReducer(t.editor, action.action);
         return editor === t.editor ? t : { ...t, editor };
       });

@@ -1105,6 +1105,8 @@ test.describe('protecting', () => {
     expect(text).not.toContain('Erste');
     expect(text).toContain('Zweite Zeile');
     expect(new TextDecoder('latin1').decode(bytes)).not.toContain('Erste');
+    // What a redaction does not reach is named after saving.
+    await expect(page.getByRole('status').filter({ hasText: 'Lesezeichen, Metadaten' })).toBeVisible();
   });
 
   test('keeps redacted text out of an export as text', async ({ app: page }) => {
@@ -1379,6 +1381,27 @@ test.describe('bookmarks', () => {
       { title: 'R Drei', page: 2 },
       { title: 'Zum Schluss', page: 2 },
     ]);
+  });
+
+  test('are carried into a document made of several tabs', async ({ app: page }) => {
+    await page.getByTestId('file-input').setInputFiles([pdfFile('a.pdf', await makeRichPdf('A', 500)), pdfFile('b.pdf', await makeRichPdf('B', 600))]);
+    await expect(page.getByRole('tab')).toHaveCount(2);
+    await page.getByRole('tab', { name: /a\.pdf/ }).click();
+    await expect(page.locator('.card img').first()).toBeVisible();
+    await page.getByRole('button', { name: 'Lesezeichen' }).first().click();
+    await page.getByRole('option', { name: /A Eins/ }).click();
+    await page.getByLabel('Titel', { exact: true }).fill('Anfang von A');
+    await page.getByRole('dialog').getByRole('button', { name: 'Übernehmen' }).click();
+    await page.getByTestId('merge').click();
+    await page.getByTestId('merge-submit').click();
+    await expect(page.getByRole('tab')).toHaveCount(3);
+    await page.getByRole('button', { name: 'Lesezeichen' }).first().click();
+    await expect(page.getByRole('option', { name: /Anfang von A/ })).toBeVisible();
+    await expect(page.getByRole('option', { name: /B Eins/ })).toBeVisible();
+    await page.getByRole('dialog').getByRole('button', { name: 'Abbrechen' }).click();
+    const file = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Zusammengefügt speichern' }).click();
+    expect((await outlineOf(await downloadBytes(await file))).map((o) => o.title)).toEqual(['a.pdf', 'b.pdf']);
   });
 
   test('moves with the page, shows in the reading view and can be undone and reset', async ({ app: page }) => {

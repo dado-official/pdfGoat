@@ -609,4 +609,5 @@ export const en: Record<MessageKey, string> = {
   'overwrite.denied': 'The browser did not allow writing into the file.',
   'overwrite.done': 'Saved in {name}.',
   'open.pictures': 'Pictures',
+  'redact.leftover': "The content of the pages was redacted. Titles of bookmarks, metadata (title, author) and file attachments can still contain the word. Check them under “Protection and check”.",
 };

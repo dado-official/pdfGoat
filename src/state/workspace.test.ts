@@ -98,3 +98,16 @@ describe('clonePages', () => {
     expect(copy).toEqual([{ id: 'n0', docId: 'd', srcIndex: 4, rotation: 90 }]);
   });
 });
+
+describe('editor action aimed at a tab', () => {
+  it('changes the tab it names, not the active one', async () => {
+    const { workspaceReducer, emptyWorkspace } = await import('./workspace');
+    const page = (id: string) => ({ id, docId: 'd', srcIndex: 0, rotation: 0 });
+    let ws = workspaceReducer(emptyWorkspace, { type: 'open', id: 'a', title: 'A', pages: [page('a1')] });
+    ws = workspaceReducer(ws, { type: 'open', id: 'b', title: 'B', pages: [page('b1')] });
+    expect(ws.active).toBe('b');
+    ws = workspaceReducer(ws, { type: 'editor', id: 'a', action: { type: 'outline', items: [] } });
+    expect(ws.tabs.find((t) => t.id === 'a')!.editor.changes.at(-1)?.type).toBe('outline');
+    expect(ws.tabs.find((t) => t.id === 'b')!.editor.changes.at(-1)?.type).not.toBe('outline');
+  });
+});

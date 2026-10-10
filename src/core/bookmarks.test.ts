@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addBookmark, fromPlaced, flatten, indentBookmark, moveBookmark, outdentBookmark, removeBookmark, renameBookmark, resolveBookmarks, retarget, toPlaced, type Bookmark } from './bookmarks';
+import { mergeBookmarks, remapBookmarks, addBookmark, fromPlaced, flatten, indentBookmark, moveBookmark, outdentBookmark, removeBookmark, renameBookmark, resolveBookmarks, retarget, toPlaced, type Bookmark } from './bookmarks';
 import type { PageRef } from './types';
 
 const pages: PageRef[] = ['a', 'b', 'c'].map((id, i) => ({ id, docId: 'd', srcIndex: i, rotation: 0 }));
@@ -44,5 +44,22 @@ describe('bookmark trees', () => {
 
   it('add a bookmark at the end', () => {
     expect(names(addBookmark(tree, b('z', 'a')))).toEqual(['x', '-x1', 'y', 'z']);
+  });
+});
+
+describe('putting bookmarks of several documents together', () => {
+  let n = 0;
+  const id = () => `n${n++}`;
+  it('points them at the copies of the pages', () => {
+    const mapped = remapBookmarks(tree, new Map([['a', 'A'], ['b', 'B']]), id);
+    expect(flatten(mapped).map((f) => f.bookmark.pageId)).toEqual(['A', 'B', null]);
+    expect(flatten(mapped).map((f) => f.bookmark.id)).not.toContain('x');
+  });
+
+  it('gives each document an entry with its name, and leaves a single document as it is', () => {
+    const merged = mergeBookmarks([{ title: 'Eins', items: [b('p', 'a')], firstPageId: 'a' }, { title: 'Leer', items: [], firstPageId: 'b' }, { title: 'Zwei', items: [b('q', 'c')], firstPageId: 'c' }], id);
+    expect(merged.map((m) => [m.title, m.pageId, m.children.length])).toEqual([['Eins', 'a', 1], ['Zwei', 'c', 1]]);
+    const one = [b('p', 'a')];
+    expect(mergeBookmarks([{ title: 'Eins', items: one, firstPageId: 'a' }], id)).toBe(one);
   });
 });

@@ -111,3 +111,24 @@ export const addBookmark = (items: readonly Bookmark[], b: Bookmark): Bookmark[]
 export function flatten(items: readonly Bookmark[], depth = 0): { bookmark: Bookmark; depth: number }[] {
   return items.flatMap((b) => [{ bookmark: b, depth }, ...flatten(b.children, depth + 1)]);
 }
+
+/** The same bookmarks pointing at other pages: `idMap` maps the old page ids to the new ones. */
+export function remapBookmarks(items: readonly Bookmark[], idMap: ReadonlyMap<string, string>, newId: () => string): Bookmark[] {
+  return items.map((b) => ({
+    id: newId(),
+    title: b.title,
+    pageId: b.pageId === null ? null : (idMap.get(b.pageId) ?? null),
+    children: remapBookmarks(b.children, idMap, newId),
+  }));
+}
+
+/**
+ * The bookmarks of several documents that are put together: with one document they stand as they
+ * are, with several each document gets an entry with its name that jumps to its first page.
+ */
+export function mergeBookmarks(groups: readonly { title: string; items: Bookmark[]; firstPageId: string | null }[], newId: () => string): Bookmark[] {
+  if (groups.length === 1) return groups[0].items;
+  return groups
+    .filter((g) => g.items.length > 0)
+    .map((g) => ({ id: newId(), title: g.title, pageId: g.firstPageId, children: g.items }));
+}

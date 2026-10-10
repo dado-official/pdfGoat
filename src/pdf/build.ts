@@ -190,7 +190,11 @@ export async function buildPdf(
     const newFields = pages.flatMap((p, i) => (p.annots ?? []).filter((a) => a.kind === 'field' && a.field).map((a) => ({ i, a })));
     if (newFields.length) {
       const taken = new Set<string>();
-      for (let i = 0; i < out.countPages(); i++) for (const f of listFields(out.loadPage(i))) taken.add(f.name);
+      for (let i = 0; i < out.countPages(); i++) {
+        const p = out.loadPage(i);
+        for (const f of listFields(p)) taken.add(f.name);
+        p.destroy();
+      }
       const names = uniqueNames(newFields.map(({ a }) => ({ name: a.field!.name, radio: a.field!.type === 'radio' })), taken);
       const byPage = new Map<number, { box: Annot['box']; spec: NonNullable<Annot['field']>; name: string }[]>();
       newFields.forEach(({ i, a }, k) => byPage.set(i, [...(byPage.get(i) ?? []), { box: a.box, spec: a.field!, name: names[k] }]));
