@@ -63,6 +63,12 @@ unabhängiger Leser, der die gespeicherten Dateien prüft.
 - `src/i18n/`: Texte auf Deutsch und Englisch, `src/ui/`: gemeinsame Bausteine
 - Unit-Tests liegen neben dem Modul (`*.test.ts`), Browser-Tests in `tests/e2e/`
 
+## Vor der Veröffentlichung
+
+- Die Angaben des Betreibers in `src/legal/operator.ts` ausfüllen (Name, Anschrift, E-Mail, Adresse des Quellcodes). Solange etwas fehlt, zeigen Impressum, Datenschutz und Lizenzen eine rote Warnung.
+- Das Repository öffentlich schalten, damit der angegebene Quellcode erreichbar ist (Pflicht aus der AGPL).
+- Beim Hinzufügen einer Abhängigkeit sie in `src/legal/licenses.ts` eintragen (ein Test erinnert daran).
+
 ## Lizenz
 
 PDFgoat ist freie Software unter der [GNU AGPL, Version 3 oder später](LICENSE). Wer eine veränderte

@@ -261,6 +261,8 @@ Stand: umgesetzt (10.10.2026). **Offline:** `vite-plugin-pwa` (generateSW) legt 
 
 ### Rechtliches und erste Veröffentlichung
 
+Stand Rechtliches: Seiten umgesetzt (10.10.2026), Angaben des Betreibers fehlen noch. Impressum (nach § 5 ECG und § 25 MedienG, mit „Grundlegender Richtung“), Datenschutz (keine Cookies, kein Tracking, Dateien bleiben lokal, was der Browser speichert, Hoster, Rechte, österreichische Datenschutzbehörde) und Lizenzen (AGPL mit Quellcode-Angabe, Liste aller Bausteine mit Lizenz) sind Seiten der App unter `#/impressum`, `#/datenschutz` und `#/lizenzen`, in beiden Sprachen, erreichbar über die Fußzeile von Start- und Arbeitsansicht, ohne dass ein geöffnetes Dokument verloren geht, und offline verfügbar. Die Lizenztexte (`/LICENSE.txt` und `/third-party-licenses.txt`, mit allen Urheberrechtsvermerken) werden bei jedem Build aus `node_modules` erzeugt (`scripts/legal-files.mjs`); ein Test stellt sicher, dass jede neue Abhängigkeit in der Liste (`src/legal/licenses.ts`) steht. **Die Angaben des Betreibers** (Name, Anschrift, E-Mail, Adresse des Quellcodes) stehen in `src/legal/operator.ts` und sind leer: Solange etwas fehlt, zeigen die drei Seiten eine rote Warnung mit den fehlenden Feldern. Das ist ein Hinweis, kein Rechtsrat: Die Texte sind sorgfältig und knapp gehalten, sollten vor der Veröffentlichung aber von jemandem gelesen werden, der das für Österreich beurteilen kann.
+
 Kein eigener Meilenstein in der Reihe, sondern mit dem Abschluss von M3 fällig. Die erste öffentliche Version erscheint nach M3, weil der erste Eindruck dann ein Editor ist und kein Seitensortierer. Bis dahin gibt es nur die Vorschau-Adressen von Cloudflare Pages.
 
 - Offenlegung nach § 25 MedienG (Name, Wohnort)

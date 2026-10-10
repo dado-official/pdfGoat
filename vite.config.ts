@@ -89,7 +89,7 @@ export default defineConfig({
         file_handlers: [{ action: './', accept: { 'application/pdf': ['.pdf'] } }],
       } as never,
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,wasm,png,webmanifest}'],
+        globPatterns: ['**/*.{js,css,html,svg,wasm,png,webmanifest,txt}'],
         globIgnores: ['ocr/**', '_headers'],
         maximumFileSizeToCacheInBytes: 40 * 1024 * 1024,
         navigateFallback: 'index.html',

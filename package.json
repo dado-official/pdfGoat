@@ -13,8 +13,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "check": "npm run lint && npm run build && npm test && npm run test:e2e",
-    "predev": "node scripts/copy-ocr.mjs",
-    "prebuild": "node scripts/copy-ocr.mjs"
+    "predev": "node scripts/copy-ocr.mjs && node scripts/legal-files.mjs",
+    "prebuild": "node scripts/copy-ocr.mjs && node scripts/legal-files.mjs"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.3.0",

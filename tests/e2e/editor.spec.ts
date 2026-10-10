@@ -1499,6 +1499,47 @@ test.describe('files handed over by the system', () => {
   });
 });
 
+test.describe('legal pages', () => {
+  test('are reachable from the start page and from a document, and lead back', async ({ app: page }) => {
+    await page.getByRole('link', { name: 'Datenschutz' }).click();
+    await expect(page.getByRole('heading', { name: 'Datenschutz', level: 2 })).toBeVisible();
+    await expect(page.getByText('Deine PDF-Dateien verlassen deinen Browser nicht.')).toBeVisible();
+    await page.getByRole('link', { name: 'Impressum' }).click();
+    await expect(page.getByRole('heading', { name: 'Impressum', level: 2 })).toBeVisible();
+    await page.getByRole('link', { name: 'Lizenzen' }).click();
+    await expect(page.getByRole('link', { name: 'mupdf', exact: true })).toBeVisible();
+    await expect(page.getByText('AGPL-3.0-or-later')).toBeVisible();
+    await page.getByRole('link', { name: 'Zurück zu PDFgoat' }).click();
+    await expect(page.getByRole('heading', { name: 'Edit PDFs without uploading.' }).or(page.getByRole('heading', { name: /ohne Upload/ }))).toBeVisible();
+  });
+
+  test('keep the open document while they are read', async ({ app: page }) => {
+    await page.getByTestId('file-input').setInputFiles(pdfFile('bleibt.pdf', await makePdf([{ width: 300 }, { width: 301 }])));
+    await expect(page.locator('.card')).toHaveCount(2);
+    await card(page, 0).locator('.card-thumb').click();
+    await page.getByRole('link', { name: 'Impressum' }).click();
+    await expect(page.getByRole('heading', { name: 'Impressum', level: 2 })).toBeVisible();
+    await page.goBack();
+    await expect(page.locator('.card')).toHaveCount(2);
+    await expect(page.locator('.card.selected')).toHaveCount(1);
+  });
+
+  test('speak English when the language is switched, and name the details that are still missing', async ({ app: page }) => {
+    await page.getByRole('button', { name: 'English' }).click();
+    await page.getByRole('link', { name: 'Privacy' }).click();
+    await expect(page.getByText('Your PDF files never leave your browser.')).toBeVisible();
+    await expect(page.getByRole('alert')).toContainText('still missing');
+  });
+
+  test('serve the licence texts', async ({ app: page, request, baseURL }) => {
+    const licence = await request.get(new URL('LICENSE.txt', baseURL!).href);
+    expect(await licence.text()).toContain('GNU AFFERO GENERAL PUBLIC LICENSE');
+    const others = await (await request.get(new URL('third-party-licenses.txt', baseURL!).href)).text();
+    for (const name of ['mupdf', 'react', 'tesseract.js', 'fflate', 'geist']) expect(others).toContain(name);
+    void page;
+  });
+});
+
 test.describe('files that cannot be opened', () => {
   test('rejects files that are not PDFs', async ({ app: page }) => {
     await page.getByTestId('file-input').setInputFiles(pdfFile('kaputt.pdf', Buffer.from('das ist kein pdf')));

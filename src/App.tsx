@@ -21,6 +21,8 @@ import { useFileDrop, useShortcuts } from './ui/useWindowEvents';
 import DropZone from './features/open/DropZone';
 import PasswordDialog from './features/open/PasswordDialog';
 import Reader from './features/read/Reader';
+import LegalPage, { LegalLinks } from './legal/LegalPage';
+import { useLegalRoute } from './legal/useRoute';
 import { registerOffline } from './pwa';
 import { allowWriting, canPickWithHandles, pickPdfs, receiveLaunchedFiles, writeInto, type OpenedFile } from './features/open/fileAccess';
 import PageDialog from './features/edit/PageDialog';
@@ -519,6 +521,10 @@ export default function App() {
       </div>
     </div>
   );
+  const legalRoute = useLegalRoute();
+  // A legal page replaces the app for as long as it is open; everything the app holds stays as it is.
+  if (legalRoute) return <LegalPage route={legalRoute} />;
+
   const meta = (
     <>
       <p className="privacy" title={t('privacy.title')}>{t('privacy.badge')}</p>
@@ -698,6 +704,7 @@ export default function App() {
           <footer>
             {t('footer.intro')}{' '}
             <a href="https://mupdf.com/" target="_blank" rel="noopener noreferrer">MuPDF</a> (AGPL).
+            <LegalLinks />
           </footer>
         </div>
       </div>
