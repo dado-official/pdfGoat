@@ -34,3 +34,4 @@ playwright-report/
 
 # Wissensgraph (graphify), wird lokal erzeugt
 graphify-out/
+public/ocr

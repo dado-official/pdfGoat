@@ -3,7 +3,7 @@ import type { PageRef } from './types';
 
 /** True when saving writes new content into this page, so a faithful picture needs the finished page. */
 export const changesContent = (p: PageRef): boolean =>
-  !!p.annots?.some((a) => a.embed) || !!p.marks?.length || !!p.crop || !!p.size || !!p.edits?.length;
+  !!p.annots?.some((a) => a.embed) || !!p.marks?.length || !!p.crop || !!p.size || !!p.edits?.length || !!p.ocr?.length;
 
 /** The size of a page as it will be saved and shown, in points: its own size, cropped, resized and turned. */
 export function finalSize(p: PageRef, own: Size): Size {

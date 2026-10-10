@@ -484,6 +484,27 @@ export const de = {
   'compare.missing': 'fehlt in einem Dokument',
   'compare.visual': 'Bildvergleich (dunkel ist anders)',
   'compare.visualFailed': 'Der Bildvergleich ist fehlgeschlagen.',
+
+  // Text recognition
+  'pagetools.ocr': 'Texterkennung',
+  'cmd.ocr': 'Text in gescannten Seiten erkennen',
+  'cmd.ocr.kw': 'ocr scan durchsuchbar erkennen schrift',
+  'ocr.title': 'Texterkennung',
+  'ocr.start': 'Erkennen',
+  'ocr.working': 'Wird erkannt …',
+  'ocr.language': 'Sprache des Textes',
+  'ocr.lang.deu': 'Deutsch',
+  'ocr.lang.eng': 'Englisch',
+  'ocr.lang.deu+eng': 'Deutsch und Englisch',
+  'ocr.hint': 'Das Programm für die Texterkennung und die Sprachdaten (einige Megabyte) werden erst jetzt von dieser Seite geladen. Alles läuft auf deinem Rechner, die Seiten werden nicht hochgeladen. Der erkannte Text ist unsichtbar: Er lässt sich suchen und kopieren, und er wird beim Speichern in die Datei geschrieben.',
+  'ocr.loading': 'Sprachdaten werden geladen …',
+  'ocr.progress': 'Seite {done} von {total} …',
+  'ocr.done': '{count} Wörter erkannt. Sie sind jetzt markierbar und stehen in der gespeicherten Datei.',
+  'ocr.none': 'Es wurde kein Text erkannt.',
+  'ocr.failed': 'Die Texterkennung ist fehlgeschlagen.',
+  'ocr.remove': 'Erkannten Text entfernen',
+  'export.format.docx': 'Word (einfach: Text, Absätze, Überschriften)',
+  'export.docxHint': 'Einfache Umwandlung: Der Text kommt mit Absätzen und Überschriften, so wie sie aus Abständen und Schriftgrößen zu erkennen sind. Spalten, Tabellen, Bilder und die Schriften des Originals werden nicht übernommen. Für Dokumente mit Tabellen oder mehreren Spalten ist das Ergebnis nicht brauchbar.',
 } as const;
 
 export type MessageKey = keyof typeof de;

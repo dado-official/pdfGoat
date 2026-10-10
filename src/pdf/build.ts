@@ -4,7 +4,8 @@ import { loadMupdf } from './mupdf';
 import { AppError } from '../core/errors';
 import { addComment, deleteComments } from './annotate';
 import { applyFields } from './forms';
-import { embedText, textWidth } from './embed';
+import { embedInvisibleWords, embedText, textWidth } from './embed';
+import { wordBaseline, wordSize } from '../core/ocr';
 import { applyPageBox } from './pagebox';
 import { applyEdits } from './edit';
 import { cleanPdf, redactPage } from './protect';
@@ -186,6 +187,17 @@ export async function buildPdf(
       if (!p.annots?.length) return;
       const page = out.loadPage(i);
       for (const a of p.annots) addComment(engine, page, a);
+    });
+
+    // Text found by text recognition goes in as invisible text under the page's picture.
+    pages.forEach((p, i) => {
+      if (!p.ocr?.length) return;
+      embedInvisibleWords(
+        engine,
+        out,
+        out.loadPage(i),
+        p.ocr.map((w) => ({ text: w.text, x: w.box[0], y: wordBaseline(w.box), size: wordSize(w.box), width: w.box[2] - w.box[0] })),
+      );
     });
 
     // Real redaction comes after everything else is on the page, so inserted text under an area goes too.

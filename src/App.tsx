@@ -21,11 +21,16 @@ import { useFileDrop, useShortcuts } from './ui/useWindowEvents';
 import DropZone from './features/open/DropZone';
 import PasswordDialog from './features/open/PasswordDialog';
 import Reader from './features/read/Reader';
+import OcrDialog from './features/ocr/OcrDialog';
+import { ocrWidth, recognizePages, type OcrLang } from './pdf/ocr';
+import { ocrLines } from './core/ocr';
+import { renderPageBytes } from './pdf/view';
 import CompareDialog from './features/compare/CompareDialog';
 import CompressDialog from './features/export/CompressDialog';
 import { LEVELS, type CompressLevel } from './core/compress';
 import ExportDialog, { type ExportFormat } from './features/export/ExportDialog';
 import { toMarkdown, toParagraphs, toText } from './core/textExport';
+import { buildDocx } from './core/docx';
 import { renderFinalPng } from './pdf/render';
 import { getText } from './pdf/view';
 import ProtectDialog from './features/protect/ProtectDialog';
@@ -81,6 +86,7 @@ export default function App() {
   const [exportOpen, setExportOpen] = useState(false);
   const [compressOpen, setCompressOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
+  const [ocrOpen, setOcrOpen] = useState(false);
   // Protection and cleaning apply to everything that is saved, in every tab.
   const [protect, setProtect] = useState<Protection | null>(null);
   const [clean, setClean] = useState<Cleaning>(noCleaning);
@@ -285,11 +291,15 @@ export default function App() {
       for (const [i, p] of target.entries()) {
         if (job.signal?.aborted) throw new CancelledError();
         const doc = docs[p.docId];
-        const lines = doc?.sizes[p.srcIndex] ? await getText(doc, p.srcIndex) : [];
+        const lines = [...(doc?.sizes[p.srcIndex] ? await getText(doc, p.srcIndex) : []), ...ocrLines(p.ocr ?? [])];
         texts.push(toParagraphs(lines.map((l) => ({ text: l.text, x: l.x, y: l.y, size: l.size }))));
         job.onProgress?.((i + 1) / target.length);
       }
       const text = format === 'md' ? toMarkdown(texts) : toText(texts);
+      if (format === 'docx' && texts.some((p) => p.length)) {
+        download(buildDocx(texts), `${name}.docx`, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+        return;
+      }
       if (!text.trim()) {
         setNotice(t('export.noText'));
         return;
@@ -422,6 +432,7 @@ export default function App() {
     { id: 'crop', label: t('cmd.crop'), keywords: t('cmd.crop.kw'), enabled: hasPages, run: () => setPageDialog('crop') },
     { id: 'resize', label: t('cmd.resize'), keywords: t('cmd.resize.kw'), enabled: hasPages, run: () => setPageDialog('resize') },
     { id: 'protect', label: t('cmd.protect'), keywords: t('cmd.protect.kw'), enabled: !!tab, run: () => setProtectOpen(true) },
+    { id: 'ocr', label: t('cmd.ocr'), keywords: t('cmd.ocr.kw'), enabled: hasPages, run: () => setOcrOpen(true) },
     { id: 'compare', label: t('cmd.compare'), keywords: t('cmd.compare.kw'), enabled: ws.tabs.length > 1, run: () => setCompareOpen(true) },
     { id: 'compress', label: t('cmd.compress'), keywords: t('cmd.compress.kw'), enabled: hasPages, run: () => setCompressOpen(true) },
     { id: 'export', label: t('cmd.export'), keywords: t('cmd.export.kw'), enabled: hasPages, run: () => setExportOpen(true) },
@@ -589,6 +600,7 @@ export default function App() {
                 protectActive={protectActive}
                 onExport={() => setExportOpen(true)}
                 onCompress={() => setCompressOpen(true)}
+                onOcr={() => setOcrOpen(true)}
                 canCompare={ws.tabs.length > 1}
                 onCompare={() => setCompareOpen(true)}
               />
@@ -653,6 +665,31 @@ export default function App() {
         <MergeDialog tabs={ws.tabs} onMerge={mergeTabs} onClose={() => setMergeOpen(false)} />
       )}
 
+      {ocrOpen && (
+        <OcrDialog
+          scope={scope}
+          hasText={target.some((p) => p.ocr?.length)}
+          onRun={async (lang: OcrLang, onProgress, signal) => {
+            const found = await recognizePages(
+              lang,
+              target.length,
+              async (i) => {
+                const p = target[i];
+                const own = sizeOf(p);
+                if (!own || !docs[p.docId]) return null;
+                const png = await renderPageBytes(docs[p.docId], p.srcIndex, { width: ocrWidth(own.width), rotation: 0, hidden: p.removed });
+                return { png, pointsWide: own.width };
+              },
+              onProgress,
+              signal,
+            );
+            dispatch({ type: 'ocr', words: Object.fromEntries(target.map((p, i) => [p.id, found[i]?.length ? found[i] : null])) });
+            return found.reduce((n, w) => n + (w?.length ?? 0), 0);
+          }}
+          onRemove={() => dispatch({ type: 'ocr', words: Object.fromEntries(target.map((p) => [p.id, null])) })}
+          onClose={() => setOcrOpen(false)}
+        />
+      )}
       {compareOpen && <CompareDialog tabs={ws.tabs} docs={docs} onClose={() => setCompareOpen(false)} />}
       {compressOpen && (
         <CompressDialog

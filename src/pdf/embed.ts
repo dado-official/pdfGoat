@@ -190,3 +190,32 @@ export function embedPicture(engine: Mupdf, doc: PDFDocument, page: PDFPage, p: 
   const local: Matrix = [x1 - x0, 0, 0, -(y1 - y0), x0, y1];
   appendContent(doc, page, `q ${gs}${mx(toPdf(engine, page, local))} cm /${name} Do Q\n`);
 }
+
+export interface InvisibleWord {
+  text: string;
+  /** Left edge, baseline and font size in page points. */
+  x: number;
+  y: number;
+  size: number;
+  /** The width the word should span; the text is stretched to it. */
+  width: number;
+}
+
+/**
+ * Writes words as invisible text (render mode 3) in one go, for a page that is a picture: the
+ * words can be searched, selected and copied but are not drawn.
+ */
+export function embedInvisibleWords(engine: Mupdf, doc: PDFDocument, page: PDFPage, words: InvisibleWord[]) {
+  if (!words.length) return;
+  const { obj, resource } = fontOf(engine, doc);
+  subDict(doc, resourcesOf(doc, page), 'Font').put(resource, obj);
+  let content = 'q\n';
+  for (const w of words) {
+    const natural = textWidth(engine, doc, w.text, w.size);
+    // Stretched sideways to the box the word was found in, so a selection covers the right place.
+    const stretch = natural > 0 ? Math.max(10, Math.min(1000, (w.width / natural) * 100)) : 100;
+    const local: Matrix = [1, 0, 0, -1, w.x, w.y];
+    content += `q ${mx(toPdf(engine, page, local))} cm BT /${resource} ${fmt(w.size)} Tf 3 Tr ${fmt(stretch)} Tz 0 0 Td <${hex(encodeWinAnsi(w.text).bytes)}> Tj ET Q\n`;
+  }
+  appendContent(doc, page, `${content}Q\n`);
+}

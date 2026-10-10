@@ -65,6 +65,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case 'crop':
     case 'resize':
     case 'edit':
+    case 'ocr':
       return record(state, action);
 
     case 'toggleSelect': {

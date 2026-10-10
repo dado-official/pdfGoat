@@ -1184,6 +1184,45 @@ test.describe('pictures and export', () => {
     const md = page.waitForEvent('download');
     await page.getByRole('dialog').getByRole('button', { name: 'Exportieren' }).click();
     expect((await md).suggestedFilename()).toBe('inhalt.md');
+
+    await page.getByRole('button', { name: 'Exportieren' }).first().click();
+    await page.getByLabel(/^Word/).check();
+    const word = page.waitForEvent('download');
+    await page.getByRole('dialog').getByRole('button', { name: 'Exportieren' }).click();
+    const docx = await word;
+    expect(docx.suggestedFilename()).toBe('inhalt.docx');
+    const parts = unzipSync(await downloadBytes(docx));
+    expect(new TextDecoder().decode(parts['word/document.xml'])).toContain('Erste Zeile Zweite Zeile');
+  });
+
+  test('recognises the text of a scanned page and writes it into the saved file', async ({ app: page }) => {
+    test.setTimeout(150_000);
+    // A "scan": a picture with text on it, drawn in the browser.
+    const base64 = await page.evaluate(() => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1400;
+      canvas.height = 500;
+      const ctx = canvas.getContext('2d')!;
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, 1400, 500);
+      ctx.fillStyle = '#000';
+      ctx.font = 'bold 130px Arial, Helvetica, sans-serif';
+      ctx.fillText('Hallo Welt', 80, 200);
+      ctx.fillText('Rechnung 2026', 80, 380);
+      return canvas.toDataURL('image/png').split(',')[1];
+    });
+    await page.getByTestId('file-input').setInputFiles({ name: 'scan.png', mimeType: 'image/png', buffer: Buffer.from(base64, 'base64') });
+    await expect(page.locator('.card img')).toBeVisible();
+    await page.getByRole('button', { name: 'Texterkennung' }).first().click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Erkennen' }).click();
+    await expect(page.getByRole('status')).toContainText('Wörter erkannt', { timeout: 120_000 });
+    await page.getByRole('dialog').getByRole('button', { name: 'Abbrechen' }).click();
+    const file = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'PDF speichern' }).click();
+    const text = (await textOf(await downloadBytes(await file)))[0];
+    expect(text).toContain('Hallo');
+    expect(text).toContain('Welt');
+    expect(text).toContain('2026');
   });
 
   test('compares two documents and shows the words that differ', async ({ app: page }) => {

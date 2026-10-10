@@ -11,13 +11,14 @@ interface Props {
   protectActive: boolean;
   onExport: () => void;
   onCompress: () => void;
+  onOcr: () => void;
   /** Two or more documents are open. */
   canCompare: boolean;
   onCompare: () => void;
 }
 
 /** Tools that change whole pages: an empty page, header and footer, cropping, paper size. */
-export default function PageTools({ disabled, onBlank, onMark, onCrop, onResize, onProtect, protectActive, onExport, onCompress, canCompare, onCompare }: Props) {
+export default function PageTools({ disabled, onBlank, onMark, onCrop, onResize, onProtect, protectActive, onExport, onCompress, onOcr, canCompare, onCompare }: Props) {
   const { t } = useI18n();
   return (
     <div className="ribbon page-tools" role="toolbar" aria-label={t('pagetools.label')}>
@@ -27,6 +28,10 @@ export default function PageTools({ disabled, onBlank, onMark, onCrop, onResize,
         <span>{t('pagetools.mark')}</span></button>
       <button className="ribbon-button" onClick={onCrop} disabled={disabled}><Icon name="crop" size={22} />
         <span>{t('pagetools.crop')}</span></button>
+      <button className="ribbon-button" onClick={onOcr} disabled={disabled}>
+        <Icon name="ocr" size={22} />
+        <span>{t('pagetools.ocr')}</span>
+      </button>
       <button className="ribbon-button" onClick={onCompare} disabled={!canCompare} title={canCompare ? undefined : t('compare.needTwo')}>
         <Icon name="compare" size={22} />
         <span>{t('pagetools.compare')}</span>

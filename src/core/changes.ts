@@ -4,6 +4,7 @@
 import type { Annot } from './annotations';
 import type { Edit } from './edits';
 import type { Mark } from './marks';
+import type { OcrWord } from './ocr';
 import type { Box } from './textLayer';
 import type { PageRef } from './types';
 
@@ -26,6 +27,8 @@ export type Change =
   | { type: 'crop'; crops: Record<string, Box | null> }
   /** Sets a new size for pages, in points as shown, by page id (null: keep the size). */
   | { type: 'resize'; sizes: Record<string, [number, number] | null> }
+  /** Sets the words found by text recognition, by page id (null: remove them). */
+  | { type: 'ocr'; words: Record<string, OcrWord[] | null> }
   /** Replaces the edits of the existing text and pictures of one page. */
   | { type: 'edit'; id: string; edits: Edit[] };
 
@@ -125,6 +128,18 @@ export function applyChange(pages: PageRef[], change: Change): PageRef[] {
         if (JSON.stringify(p.size) === JSON.stringify(size)) return p;
         changed = true;
         return { ...p, size };
+      });
+      return changed ? next : pages;
+    }
+
+    case 'ocr': {
+      let changed = false;
+      const next = pages.map((p) => {
+        if (!(p.id in change.words)) return p;
+        const ocr = change.words[p.id] ?? undefined;
+        if (ocr === p.ocr) return p;
+        changed = true;
+        return { ...p, ocr };
       });
       return changed ? next : pages;
     }

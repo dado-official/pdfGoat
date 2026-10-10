@@ -223,3 +223,28 @@ describe('empty pages', () => {
     expect((await boundsOf(out, 0))[3]).toBe(700);
   });
 });
+
+describe('text recognition result', () => {
+  it('writes found words as invisible text that can be searched', async () => {
+    const out = await buildPdf(
+      [page({ ocr: [{ text: 'Hallo', box: [100, 100, 180, 124] }, { text: 'Müller', box: [200, 100, 290, 124] }] })],
+      await a4(),
+    );
+    const doc = await open(out);
+    try {
+      const p = doc.loadPage(0);
+      const hit = p.search('Müller', 'ignore-case')[0][0];
+      // The found box is where the word was found, to within a few points.
+      expect(Math.abs(hit[0] - 200)).toBeLessThan(4);
+      expect(Math.abs(hit[2] - 290)).toBeLessThan(6);
+      expect(p.toStructuredText('').asText()).toContain('Hallo');
+      // Nothing is drawn.
+      const { ColorSpace } = await import('mupdf');
+      const pix = p.toPixmap([1, 0, 0, 1, 0, 0], ColorSpace.DeviceRGB, false, false);
+      expect(Array.from(pix.getPixels()).every((v) => v === 255)).toBe(true);
+      pix.destroy();
+    } finally {
+      doc.destroy();
+    }
+  });
+});

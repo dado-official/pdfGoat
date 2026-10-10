@@ -9,6 +9,7 @@ import { getFields, getImagePng, getImages, getLinks, getText, renderPage, type 
 import FormLayer from '../form/FormLayer';
 import EditLayer from '../edit/EditLayer';
 import { lineBox, type Edit } from '../../core/edits';
+import { ocrLines } from '../../core/ocr';
 import { useNearViewport } from '../../ui/useNearViewport';
 import AnnotLayer from '../comment/AnnotLayer';
 import { isDrawTool, type Picture, type Tool } from '../comment/tools';
@@ -187,8 +188,8 @@ function ReadPage({ page, doc, number, total, width, height, damaged, size, scal
   };
 
   const shapes = useMemo(
-    () => (lines ?? []).map((line) => ({ line, style: lineStyle(line, naturalWidth(line.text, line.size)) })),
-    [lines],
+    () => [...(lines ?? []), ...(page.ocr ? ocrLines(page.ocr) : [])].map((line) => ({ line, style: lineStyle(line, naturalWidth(line.text, line.size)) })),
+    [lines, page.ocr],
   );
 
   useEffect(() => () => {

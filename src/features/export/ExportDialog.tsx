@@ -3,7 +3,7 @@ import type { MessageKey } from '../../i18n/de';
 import { useI18n } from '../../i18n/context';
 import PageDialog from '../edit/PageDialog';
 
-export type ExportFormat = 'png' | 'txt' | 'md';
+export type ExportFormat = 'png' | 'txt' | 'md' | 'docx';
 const DPIS = [72, 150, 300] as const;
 
 interface Props {
@@ -30,7 +30,7 @@ export default function ExportDialog({ scope, onExport, onClose }: Props) {
     >
       <fieldset className="permissions">
         <legend>{t('export.format')}</legend>
-        {(['png', 'txt', 'md'] as const).map((f) => (
+        {(['png', 'txt', 'md', 'docx'] as const).map((f) => (
           <label key={f} className="check">
             <input type="radio" name="export-format" checked={format === f} onChange={() => setFormat(f)} />
             {t(`export.format.${f}` as MessageKey)}
@@ -47,7 +47,7 @@ export default function ExportDialog({ scope, onExport, onClose }: Props) {
           </select>
         </label>
       ) : (
-        <p className="dialog-hint">{t('export.textHint')}</p>
+        <p className="dialog-hint">{t(format === 'docx' ? 'export.docxHint' : 'export.textHint')}</p>
       )}
     </PageDialog>
   );

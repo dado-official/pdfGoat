@@ -1,6 +1,7 @@
 import type { Annot } from './annotations';
 import type { Mark } from './marks';
 import type { Edit } from './edits';
+import type { OcrWord } from './ocr';
 
 /** One page in the working list; points into a source document. */
 export interface PageRef {
@@ -19,6 +20,8 @@ export interface PageRef {
   crop?: [number, number, number, number];
   /** New page size in points (as shown); the content is scaled to fit and centred. */
   size?: [number, number];
+  /** Words found by text recognition, written as invisible text when saving. */
+  ocr?: OcrWord[];
   /** Changes to the page's existing text and pictures. */
   edits?: Edit[];
   /** Positions of the comments already in the file that were deleted (see `listComments`). */
