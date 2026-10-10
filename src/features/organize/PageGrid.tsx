@@ -1,6 +1,6 @@
 import { useState, type DragEvent } from 'react';
 import type { PageRef } from '../../core/types';
-import type { SourceDoc } from '../../pdf/pdfjs';
+import type { SourceDoc } from '../../pdf/lazy';
 import type { EditorAction, EditorState } from '../../state/editor';
 import { thumbKey } from './useThumbnails';
 import PageCard from './PageCard';
@@ -9,6 +9,7 @@ interface Props {
   state: EditorState;
   docs: Record<string, SourceDoc>;
   thumbs: Record<string, string>;
+  failedThumbs: ReadonlySet<string>;
   onNeedThumb: (page: PageRef) => void;
   dispatch: (action: EditorAction) => void;
   onPreview: (id: string) => void;
@@ -17,7 +18,7 @@ interface Props {
 type DropTarget = { id: string; side: 'before' | 'after' } | null;
 
 /** The page cards, including drag & drop reordering (dragging a selected page moves the whole selection). */
-export default function PageGrid({ state, docs, thumbs, onNeedThumb, dispatch, onPreview }: Props) {
+export default function PageGrid({ state, docs, thumbs, failedThumbs, onNeedThumb, dispatch, onPreview }: Props) {
   const { pages, selected } = state;
   const [dragIds, setDragIds] = useState<string[]>([]);
   const [dropTarget, setDropTarget] = useState<DropTarget>(null);
@@ -59,6 +60,7 @@ export default function PageGrid({ state, docs, thumbs, onNeedThumb, dispatch, o
           page={page}
           number={i + 1}
           thumb={thumbs[thumbKey(page)]}
+          thumbFailed={failedThumbs.has(thumbKey(page))}
           docName={docs[page.docId]?.name ?? ''}
           showDoc={showDoc}
           selected={selected.has(page.id)}

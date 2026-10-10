@@ -7,6 +7,8 @@ interface Props {
   page: PageRef;
   number: number;
   thumb?: string;
+  /** The preview could not be rendered; the page can still be saved. */
+  thumbFailed: boolean;
   docName: string;
   showDoc: boolean;
   selected: boolean;
@@ -29,7 +31,7 @@ export default function PageCard(props: Props) {
   const { t } = useI18n();
   const { page, number, thumb, docName, showDoc, selected, dragging, dropSide } = props;
   const root = useRef<HTMLDivElement>(null);
-  useWhenVisible(root, !thumb, props.onNeedThumb);
+  useWhenVisible(root, !thumb && !props.thumbFailed, props.onNeedThumb);
   const classes = ['card', selected && 'selected', dragging && 'dragging', dropSide && `drop-${dropSide}`]
     .filter(Boolean)
     .join(' ');
@@ -54,6 +56,11 @@ export default function PageCard(props: Props) {
       >
         {thumb ? (
           <img src={thumb} alt="" style={{ transform: `rotate(${page.rotation}deg)` }} draggable={false} />
+        ) : props.thumbFailed ? (
+          <span className="thumb-failed" title={t('card.previewFailed')}>
+            <span aria-hidden="true">⚠</span>
+            {t('card.previewFailed')}
+          </span>
         ) : (
           <span className="spinner" aria-hidden="true" />
         )}

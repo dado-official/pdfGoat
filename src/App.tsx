@@ -3,7 +3,7 @@ import { outputBase, partName } from './core/ranges';
 import { toMegabytes } from './core/limits';
 import { editorReducer, initialState, selectedInOrder } from './state/editor';
 import { buildPdf, zip } from './pdf/build';
-import { closePdf, openPdf, type OpenedPdf, type SourceDoc } from './pdf/pdfjs';
+import { closePdf, openPdf, type OpenedPdf, type SourceDoc } from './pdf/lazy';
 import { useI18n } from './i18n/context';
 import { download } from './ui/download';
 import { useFileDrop, useShortcuts } from './ui/useWindowEvents';
@@ -21,7 +21,7 @@ export default function App() {
   const [state, dispatch] = useReducer(editorReducer, initialState);
   // Opened source files, by id. They stay in memory only; nothing is uploaded.
   const [docs, setDocs] = useState<Record<string, SourceDoc>>({});
-  const { thumbs, request: requestThumb, clear: clearThumbs } = useThumbnails(docs);
+  const { thumbs, failed: failedThumbs, request: requestThumb, clear: clearThumbs } = useThumbnails(docs);
 
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
@@ -227,6 +227,7 @@ export default function App() {
             state={state}
             docs={docs}
             thumbs={thumbs}
+            failedThumbs={failedThumbs}
             onNeedThumb={requestThumb}
             dispatch={dispatch}
             onPreview={setPreviewId}

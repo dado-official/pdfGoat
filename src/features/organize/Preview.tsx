@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PageRef } from '../../core/types';
 import { useI18n } from '../../i18n/context';
-import { renderPage, type SourceDoc } from '../../pdf/pdfjs';
+import { renderPage, type SourceDoc } from '../../pdf/lazy';
 
 interface Props {
   doc: SourceDoc;
@@ -19,6 +19,7 @@ export default function Preview({ doc, page, number, total, onClose, onStep }: P
   const key = `${page.id}:${page.rotation}`;
   const [rendered, setRendered] = useState<{ key: string; url: string } | null>(null);
   const url = rendered?.key === key ? rendered.url : null;
+  const [failedKey, setFailedKey] = useState<string | null>(null);
 
   useEffect(() => {
     if (!dialog.current?.open) dialog.current?.showModal();
@@ -34,8 +35,10 @@ export default function Preview({ doc, page, number, total, onClose, onStep }: P
         if (cancelled) URL.revokeObjectURL(u);
         else setRendered({ key, url: u });
       })
-      // Leave the "rendering" text; the page can still be exported.
-      .catch((err) => console.warn('Preview failed', err));
+      .catch((err) => {
+        console.warn('Preview failed', err);
+        if (!cancelled) setFailedKey(key);
+      });
     return () => {
       cancelled = true;
       if (made) URL.revokeObjectURL(made);
@@ -60,7 +63,7 @@ export default function Preview({ doc, page, number, total, onClose, onStep }: P
         <button className="close" onClick={() => dialog.current?.close()} aria-label={t('preview.close')}>✕</button>
       </header>
       <div className="preview-body">
-        {url ? <img src={url} alt={t('preview.alt', { number })} /> : <p>{t('preview.rendering')}</p>}
+        {url ? <img src={url} alt={t('preview.alt', { number })} /> : <p>{t(failedKey === key ? 'preview.failed' : 'preview.rendering')}</p>}
       </div>
     </dialog>
   );

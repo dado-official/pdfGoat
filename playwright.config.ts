@@ -13,13 +13,15 @@ export default defineConfig({
     locale: 'de-AT',
     trace: 'retain-on-failure',
   },
-  // Locally the installed Google Chrome is used; CI keeps Playwright's bundled Chromium.
-  projects: [
-    {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'], ...(process.env.CI ? {} : { channel: 'chrome' }) },
-    },
-  ],
+  // Locally the installed Google Chrome is used. CI uses Playwright's own browsers and also
+  // runs Firefox and WebKit (the engine of Safari).
+  projects: process.env.CI
+    ? [
+        { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+        { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+        { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+      ]
+    : [{ name: 'chromium', use: { ...devices['Desktop Chrome'], channel: 'chrome' } }],
   webServer: {
     command: 'npm run build && npm run preview -- --port 4173 --strictPort',
     url: 'http://localhost:4173',

@@ -1,8 +1,9 @@
-# Lint, typecheck, build, unit and end-to-end tests on every push and pull request.
+# Lint, typecheck, build, unit and end-to-end tests on every pull request and on main.
 name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 jobs:
@@ -15,7 +16,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium firefox webkit
       - run: npm run check
       - uses: actions/upload-artifact@v4
         if: failure()

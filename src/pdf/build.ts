@@ -9,7 +9,8 @@ export interface BuildSource {
   name?: string;
   /** Returns the file's bytes. Called once, when the file is first needed for saving. */
   read: () => Promise<Uint8Array>;
-  /** Number of pages seen when the file was opened, to notice a file that changed since. */
+  /** Size and number of pages seen when the file was opened, to notice a file that changed since. */
+  byteLength?: number;
   pageCount?: number;
 }
 
@@ -33,14 +34,15 @@ function libDoc(src: BuildSource): Promise<PDFDocument> {
 
 async function parse(src: BuildSource): Promise<PDFDocument> {
   const { PDFDocument } = await loadPdfLib();
-  const doc = await PDFDocument.load(await src.read(), { ignoreEncryption: true });
+  const bytes = await src.read();
+  // A file that was replaced on disk after opening must never be exported as if it were the original.
+  const changed = () => new AppError('fileUnreadable', { name: src.name ?? '' });
+  if (src.byteLength !== undefined && bytes.byteLength !== src.byteLength) throw changed();
+  const doc = await PDFDocument.load(bytes, { ignoreEncryption: true });
   // Encrypted files must not be rebuilt: their streams would be copied without decrypting
   // them, which produces broken pages without any error.
   if (doc.isEncrypted) throw new AppError('encrypted', { name: src.name ?? '' });
-  // A file that was replaced on disk after opening must never be exported as if it were the original.
-  if (src.pageCount !== undefined && doc.getPageCount() !== src.pageCount) {
-    throw new AppError('fileUnreadable', { name: src.name ?? '' });
-  }
+  if (src.pageCount !== undefined && doc.getPageCount() !== src.pageCount) throw changed();
   return doc;
 }
 

@@ -81,6 +81,7 @@ export async function openPdf(file: File): Promise<OpenedPdf> {
     name,
     view,
     pageCount: view.numPages,
+    byteLength: data.byteLength,
     read: keepBytes ? async () => data : () => readFile(file),
   };
   const pages = Array.from({ length: view.numPages }, (_, i) => ({
@@ -101,8 +102,6 @@ async function isEncrypted(view: PDFDocumentProxy): Promise<boolean> {
     return false;
   }
 }
-
-export const closePdf = (doc: SourceDoc) => doc.view.loadingTask.destroy();
 
 /** Renders one page into a canvas and returns it as an object URL. */
 export async function renderPage(

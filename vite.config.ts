@@ -7,9 +7,9 @@ import { defineConfig, type Plugin } from 'vite'
 const CSP = [
   "default-src 'none'",
   "script-src 'self' 'wasm-unsafe-eval'",
-  "worker-src 'self' blob:",
+  "worker-src 'self'",
   "style-src 'self'",
-  "img-src 'self' blob: data:",
+  "img-src 'self' blob:",
   "font-src 'self'",
   "connect-src 'self'",
   "manifest-src 'self'",

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PageRef } from '../../core/types';
-import { renderPage, type SourceDoc } from '../../pdf/pdfjs';
+import { renderPage, type SourceDoc } from '../../pdf/lazy';
 
 type ThumbPage = Pick<PageRef, 'docId' | 'srcIndex'>;
 
@@ -13,6 +13,7 @@ export const thumbKey = (p: ThumbPage) => `${p.docId}:${p.srcIndex}`;
  */
 export function useThumbnails(docs: Record<string, SourceDoc>, width = 180) {
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
+  const [failed, setFailed] = useState<ReadonlySet<string>>(new Set());
   const requested = useRef(new Set<string>());
   const queue = useRef<ThumbPage[]>([]);
   const working = useRef(false);
@@ -40,8 +41,9 @@ export function useThumbnails(docs: Record<string, SourceDoc>, width = 180) {
         urls.current.add(url);
         setThumbs((t) => ({ ...t, [key]: url }));
       } catch (err) {
-        // Leave the spinner; the page can still be exported.
+        // The card shows a placeholder instead; the page can still be exported.
         console.warn('Thumbnail failed', err);
+        if (docsRef.current[p.docId] === doc) setFailed((f) => new Set(f).add(key));
       }
     }
     working.current = false;
@@ -66,9 +68,10 @@ export function useThumbnails(docs: Record<string, SourceDoc>, width = 180) {
     requested.current.clear();
     queue.current = [];
     setThumbs({});
+    setFailed(new Set());
   }, []);
 
   useEffect(() => clear, [clear]);
 
-  return { thumbs, request, clear };
+  return { thumbs, failed, request, clear };
 }

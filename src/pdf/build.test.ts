@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { PDFDict, PDFDocument, PDFName } from 'pdf-lib';
 import { describe, expect, it } from 'vitest';
 import { unzipSync } from 'fflate';
 import { describePdf, makeEncryptedPdf, makePdf } from '../../tests/fixtures';
@@ -64,6 +65,22 @@ describe('buildPdf', () => {
     });
     const same = { ...source(await makePdf([{ width: 300 }])), pageCount: 1 };
     expect(await describePdf(await buildPdf([ref('a', 0)], { a: same }))).toHaveLength(1);
+  });
+
+  it('refuses a source whose size no longer matches the opened file', async () => {
+    const bytes = await makePdf([{ width: 300 }]);
+    const src = { a: { ...source(bytes, 'neu.pdf'), byteLength: bytes.byteLength + 1 } };
+    await expect(buildPdf([ref('a', 0)], src)).rejects.toMatchObject({ code: 'fileUnreadable' });
+  });
+
+  it('keeps embedded fonts of the source pages', async () => {
+    const bytes = new Uint8Array(await readFile(new URL('../../tests/files/embedded-font.pdf', import.meta.url)));
+    const out = await PDFDocument.load(await buildPdf([ref('f', 0, 90)], { f: source(bytes) }));
+    const fontFiles = out.context
+      .enumerateIndirectObjects()
+      .filter(([, object]) => object instanceof PDFDict && ['FontFile', 'FontFile2', 'FontFile3'].some((k) => object.has(PDFName.of(k))));
+    expect(fontFiles.length).toBeGreaterThan(0);
+    expect(out.getPage(0).getRotation().angle).toBe(90);
   });
 
   it('tries again after a source could not be read', async () => {

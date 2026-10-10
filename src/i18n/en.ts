@@ -47,6 +47,7 @@ export const en: Record<MessageKey, string> = {
   'card.preview': 'Large preview',
   'card.delete.title': 'Delete',
   'card.delete': 'Delete page',
+  'card.previewFailed': 'No preview',
   'card.moveRight.title': 'Move right',
   'card.moveRight': 'Move page right',
 
@@ -57,6 +58,7 @@ export const en: Record<MessageKey, string> = {
   'preview.position': 'Page {number} of {total}',
   'preview.alt': 'Page {number}',
   'preview.rendering': 'Rendering …',
+  'preview.failed': 'This page cannot be displayed. Saving still works.',
 
   'toolbar.label': 'Tools',
   'toolbar.add': '＋ Add PDF',

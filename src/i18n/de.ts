@@ -46,6 +46,7 @@ export const de = {
   'card.preview': 'Große Vorschau',
   'card.delete.title': 'Löschen',
   'card.delete': 'Seite löschen',
+  'card.previewFailed': 'Keine Vorschau',
   'card.moveRight.title': 'Nach rechts',
   'card.moveRight': 'Nach rechts verschieben',
 
@@ -56,6 +57,7 @@ export const de = {
   'preview.position': 'Seite {number} von {total}',
   'preview.alt': 'Seite {number}',
   'preview.rendering': 'Wird gerendert …',
+  'preview.failed': 'Diese Seite kann nicht angezeigt werden. Speichern ist trotzdem möglich.',
 
   'toolbar.label': 'Werkzeuge',
   'toolbar.add': '＋ PDF hinzufügen',
