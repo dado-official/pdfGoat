@@ -4,7 +4,7 @@
 import { changesContent } from '../core/pages';
 import type { PageRef } from '../core/types';
 import { buildPdf } from './engine';
-import { renderBytes, renderPage, type SourceDoc } from './view';
+import { renderBytes, renderBytesPng, renderPage, renderPageBytes, type SourceDoc } from './view';
 
 interface Options {
   /** Width in pixels of the finished (turned) page. */
@@ -29,4 +29,13 @@ export async function renderFinal(page: PageRef, docs: Record<string, SourceDoc>
     annots: page.annots,
     fields: page.fields,
   });
+}
+
+/** The same as `renderFinal`, as PNG bytes (for saving the picture of a page). */
+export async function renderFinalPng(page: PageRef, docs: Record<string, SourceDoc>, { width, number, total, date }: Omit<Options, 'dpr'>): Promise<Uint8Array> {
+  if (changesContent(page)) {
+    const bytes = await buildPdf([page], docs, { date, numbering: { number, total } });
+    return renderBytesPng(bytes, width);
+  }
+  return renderPageBytes(docs[page.docId], page.srcIndex, { width, rotation: page.rotation, hidden: page.removed, annots: page.annots, fields: page.fields });
 }

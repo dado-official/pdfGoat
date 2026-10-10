@@ -1151,6 +1151,61 @@ test.describe('protecting', () => {
   });
 });
 
+test.describe('pictures and export', () => {
+  async function download(page: Page, name: RegExp) {
+    const file = page.waitForEvent('download');
+    await page.getByRole('button', { name }).click();
+    return file;
+  }
+
+  test('opens a picture as a page and saves it as PDF', async ({ app: page }) => {
+    await page.getByTestId('file-input').setInputFiles({ name: 'scan.png', mimeType: 'image/png', buffer: tinyPng() });
+    await expect(page.getByRole('tab')).toHaveText(/scan\.pdf/);
+    await expect(page.locator('.card img')).toBeVisible();
+    const file = await download(page, /PDF speichern/);
+    expect(file.suggestedFilename()).toBe('scan.pdf');
+    // 8 pixels at 150 dpi are 3.84 points.
+    expect((await describePdf(await downloadBytes(file))).map((p) => p.width)).toEqual([4]);
+  });
+
+  test('exports the text of the pages as plain text and Markdown', async ({ app: page }) => {
+    await page.getByTestId('file-input').setInputFiles(pdfFile('inhalt.pdf', await makeContentPdf()));
+    await expect(page.locator('.card img')).toBeVisible();
+    await page.getByRole('button', { name: 'Exportieren' }).first().click();
+    await page.getByLabel('Reiner Text').check();
+    const text = page.waitForEvent('download');
+    await page.getByRole('dialog').getByRole('button', { name: 'Exportieren' }).click();
+    const txt = await text;
+    expect(txt.suggestedFilename()).toBe('inhalt.txt');
+    expect(new TextDecoder().decode(await downloadBytes(txt))).toBe('Erste Zeile Zweite Zeile');
+
+    await page.getByRole('button', { name: 'Exportieren' }).first().click();
+    await page.getByLabel('Markdown').check();
+    const md = page.waitForEvent('download');
+    await page.getByRole('dialog').getByRole('button', { name: 'Exportieren' }).click();
+    expect((await md).suggestedFilename()).toBe('inhalt.md');
+  });
+
+  test('exports pages as pictures, a single one as PNG and several as a ZIP', async ({ app: page }) => {
+    await page.getByTestId('file-input').setInputFiles(pdfFile('zwei.pdf', await makePdf([{ width: 300, height: 200 }, { width: 301, height: 200 }])));
+    await expect(page.locator('.card img')).toHaveCount(2);
+    await page.getByRole('button', { name: 'Exportieren' }).first().click();
+    const zipped = page.waitForEvent('download');
+    await page.getByRole('dialog').getByRole('button', { name: 'Exportieren' }).click();
+    const zipFile = await zipped;
+    expect(zipFile.suggestedFilename()).toBe('zwei-Bilder.zip');
+    expect(Object.keys(unzipSync(await downloadBytes(zipFile))).sort()).toEqual(['zwei-01.png', 'zwei-02.png']);
+
+    await card(page, 0).locator('.card-thumb').click();
+    await page.getByRole('button', { name: 'Exportieren' }).first().click();
+    const single = page.waitForEvent('download');
+    await page.getByRole('dialog').getByRole('button', { name: 'Exportieren' }).click();
+    const png = await single;
+    expect(png.suggestedFilename()).toBe('zwei-01.png');
+    expect([...(await downloadBytes(png)).slice(0, 4)]).toEqual([0x89, 0x50, 0x4e, 0x47]);
+  });
+});
+
 test.describe('files that cannot be opened', () => {
   test('rejects files that are not PDFs', async ({ app: page }) => {
     await page.getByTestId('file-input').setInputFiles(pdfFile('kaputt.pdf', Buffer.from('das ist kein pdf')));

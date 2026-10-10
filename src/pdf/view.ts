@@ -122,6 +122,29 @@ export async function openPdf(file: File, password?: string): Promise<OpenedPdf>
   return { doc, pages, large: verdict === 'warn', encrypted };
 }
 
+/** Renders one page and returns it as PNG bytes. */
+export async function renderPageBytes(
+  doc: SourceDoc,
+  srcIndex: number,
+  { width = 200, rotation = 0, dpr = 1, hidden, annots, fields, hideForms }: { width?: number; rotation?: number; dpr?: number; hidden?: number[]; annots?: Annot[]; fields?: Record<number, string>; hideForms?: boolean } = {},
+): Promise<Uint8Array> {
+  try {
+    return await call<Uint8Array>({
+      type: 'render',
+      docId: doc.id,
+      pageIndex: srcIndex,
+      width: Math.round(width * dpr),
+      rotation: ((rotation % 360) + 360) % 360,
+      hidden,
+      annots,
+      fields,
+      hideForms,
+    });
+  } catch {
+    throw new AppError('renderFailed');
+  }
+}
+
 /** Renders one page and returns it as an object URL. */
 export async function renderPage(
   doc: SourceDoc,
@@ -141,6 +164,15 @@ export async function renderPage(
       hideForms,
     });
     return URL.createObjectURL(new Blob([png as BlobPart], { type: 'image/png' }));
+  } catch {
+    throw new AppError('renderFailed');
+  }
+}
+
+/** Draws the first page of a finished PDF as PNG bytes. */
+export async function renderBytesPng(bytes: Uint8Array, width: number): Promise<Uint8Array> {
+  try {
+    return await call<Uint8Array>({ type: 'renderBytes', bytes, width: Math.round(width) });
   } catch {
     throw new AppError('renderFailed');
   }

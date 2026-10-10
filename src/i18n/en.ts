@@ -427,4 +427,21 @@ export const en: Record<MessageKey, string> = {
   'cmd.protect': 'Protection and check',
   'cmd.protect.kw': 'password encrypt redact metadata check share',
   'comment.tool.redact': 'Redact',
+
+  // Export
+  'pagetools.export': 'Export',
+  'cmd.export': 'Export as pictures or text',
+  'cmd.export.kw': 'png picture text markdown txt convert',
+  'export.title': 'Export',
+  'export.apply': 'Export',
+  'export.format': 'Format',
+  'export.format.png': 'Pictures (PNG, one file per page)',
+  'export.format.txt': 'Plain text',
+  'export.format.md': 'Markdown',
+  'export.dpi': 'Resolution',
+  'export.dpiValue': '{dpi} dpi',
+  'export.images': 'pictures',
+  'export.textHint': 'The text comes from the pages as they are in the file. Your own changes to the text are not included. Scanned pages have no text without text recognition.',
+  'export.noText': 'There is no text on these pages that could be exported.',
+  'busy.exporting': 'Exporting …',
 };

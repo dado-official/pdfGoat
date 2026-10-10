@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { blankPdf } from './blank';
+import { pdfFromJpeg } from './imagePdf';
 import { cropFromMargins, paperSize } from './paper';
 
 describe('paperSize', () => {
@@ -37,6 +38,24 @@ it('writes a valid PDF with one empty page', async () => {
     expect(doc.countPages()).toBe(1);
     expect(doc.wasRepaired()).toBe(false);
     expect(doc.loadPage(0).getBounds()).toEqual([0, 0, 595, 842]);
+  } finally {
+    doc.destroy();
+  }
+});
+
+it('writes a valid PDF around a picture and gives the page its size at 150 dpi', async () => {
+  // A 2x2 JPEG made by the engine itself.
+  const { Pixmap, ColorSpace, PDFDocument } = await import('mupdf');
+  const pix = new Pixmap(ColorSpace.DeviceRGB, [0, 0, 150, 300], false);
+  pix.clear(200);
+  const jpeg = pix.asJPEG(80, false);
+  const doc = new PDFDocument(pdfFromJpeg(jpeg, 150, 300));
+  try {
+    expect(doc.countPages()).toBe(1);
+    expect(doc.wasRepaired()).toBe(false);
+    expect(doc.loadPage(0).getBounds()).toEqual([0, 0, 72, 144]);
+    const shot = doc.loadPage(0).toPixmap([1, 0, 0, 1, 0, 0], ColorSpace.DeviceRGB, false, false);
+    expect(shot.getPixels()[0]).toBeGreaterThan(150);
   } finally {
     doc.destroy();
   }

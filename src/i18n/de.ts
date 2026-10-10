@@ -430,6 +430,23 @@ export const de = {
   'cmd.protect': 'Schutz und Prüfung',
   'cmd.protect.kw': 'passwort verschluesseln schwaerzen metadaten pruefen weitergeben',
   'comment.tool.redact': 'Schwärzen',
+
+  // Export
+  'pagetools.export': 'Exportieren',
+  'cmd.export': 'Als Bilder oder Text exportieren',
+  'cmd.export.kw': 'png bild text markdown txt umwandeln',
+  'export.title': 'Exportieren',
+  'export.apply': 'Exportieren',
+  'export.format': 'Format',
+  'export.format.png': 'Bilder (PNG, eine Datei je Seite)',
+  'export.format.txt': 'Reiner Text',
+  'export.format.md': 'Markdown',
+  'export.dpi': 'Auflösung',
+  'export.dpiValue': '{dpi} dpi',
+  'export.images': 'Bilder',
+  'export.textHint': 'Der Text stammt aus den Seiten, wie sie in der Datei stehen. Eigene Änderungen am Text sind darin nicht enthalten. Gescannte Seiten haben ohne Texterkennung keinen Text.',
+  'export.noText': 'Auf diesen Seiten gibt es keinen Text, der sich exportieren lässt.',
+  'busy.exporting': 'Wird exportiert …',
 } as const;
 
 export type MessageKey = keyof typeof de;

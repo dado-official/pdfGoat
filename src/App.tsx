@@ -21,10 +21,15 @@ import { useFileDrop, useShortcuts } from './ui/useWindowEvents';
 import DropZone from './features/open/DropZone';
 import PasswordDialog from './features/open/PasswordDialog';
 import Reader from './features/read/Reader';
+import ExportDialog, { type ExportFormat } from './features/export/ExportDialog';
+import { toMarkdown, toParagraphs, toText } from './core/textExport';
+import { renderFinalPng } from './pdf/render';
+import { getText } from './pdf/view';
 import ProtectDialog from './features/protect/ProtectDialog';
 import { isCleaning, isProtected, noCleaning, type Cleaning, type Protection } from './core/protect';
 import { finalSize } from './core/pages';
 import { renderFinal } from './pdf/render';
+import { imageToPdfFile, isImage } from './features/open/imageFile';
 import PageTools from './features/edit/PageTools';
 import MarkDialog from './features/edit/MarkDialog';
 import CropDialog from './features/edit/CropDialog';
@@ -45,6 +50,7 @@ import TabBar from './features/workspace/TabBar';
 
 const PRINT_DPI = 150;
 
+const isOpenable = (f: File) => isPdf(f) || isImage(f);
 const isPdf = (f: File) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
 
 export default function App() {
@@ -69,6 +75,7 @@ export default function App() {
   const [splitOpen, setSplitOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [protectOpen, setProtectOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   // Protection and cleaning apply to everything that is saved, in every tab.
   const [protect, setProtect] = useState<Protection | null>(null);
   const [clean, setClean] = useState<Cleaning>(noCleaning);
@@ -137,7 +144,7 @@ export default function App() {
     async (list: FileList | File[]) => {
       setError('');
       setNotice('');
-      const files = [...list].filter(isPdf);
+      const files = [...list].filter(isOpenable);
       if (!files.length) {
         setError(t('error.noPdfSelected'));
         return;
@@ -148,7 +155,8 @@ export default function App() {
       for (const file of files) {
         setBusy(t('busy.opening', { name: file.name }));
         try {
-          const result = await openWithPassword(file);
+          // A picture becomes a PDF of one page first.
+          const result = await openWithPassword(isImage(file) ? await imageToPdfFile(file) : file);
           if (!result) continue;
           opened.push(result);
           if (result.encrypted) notices.push(t('warning.encrypted', { name: file.name }));
@@ -247,6 +255,43 @@ export default function App() {
   const date = today.toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-GB');
   // "Flatten form" applies to everything that is saved, in every tab.
   const [flatten, setFlatten] = useState(false);
+  /** Saves the pages as pictures, or the text of the pages as plain text or Markdown. */
+  const exportPages = (format: ExportFormat, dpi: number) =>
+    run(t('busy.exporting'), async (job) => {
+      const name = base();
+      if (format === 'png') {
+        const files: { name: string; bytes: Uint8Array }[] = [];
+        for (const [i, p] of target.entries()) {
+          if (job.signal?.aborted) throw new CancelledError();
+          const own = sizeOf(p);
+          if (!own) continue;
+          const shown = finalSize(p, own);
+          const number = pages.indexOf(p) + 1;
+          const bytes = await renderFinalPng(p, docs, { width: Math.round((shown.width * dpi) / 72), number, total: pages.length, date });
+          files.push({ name: `${name}-${String(number).padStart(2, '0')}.png`, bytes });
+          job.onProgress?.((i + 1) / target.length);
+        }
+        if (!files.length) return;
+        if (files.length === 1) download(files[0].bytes, files[0].name, 'image/png');
+        else download(await zip(files), `${name}-${t('export.images')}.zip`, 'application/zip');
+        return;
+      }
+      const texts: ReturnType<typeof toParagraphs>[] = [];
+      for (const [i, p] of target.entries()) {
+        if (job.signal?.aborted) throw new CancelledError();
+        const doc = docs[p.docId];
+        const lines = doc?.sizes[p.srcIndex] ? await getText(doc, p.srcIndex) : [];
+        texts.push(toParagraphs(lines.map((l) => ({ text: l.text, x: l.x, y: l.y, size: l.size }))));
+        job.onProgress?.((i + 1) / target.length);
+      }
+      const text = format === 'md' ? toMarkdown(texts) : toText(texts);
+      if (!text.trim()) {
+        setNotice(t('export.noText'));
+        return;
+      }
+      download(new TextEncoder().encode(text), `${name}.${format}`, format === 'md' ? 'text/markdown' : 'text/plain');
+    });
+
   const [printPages, setPrintPages] = useState<PrintPage[] | null>(null);
 
   // The images are freed when the print dialog closes or when everything is closed.
@@ -372,6 +417,7 @@ export default function App() {
     { id: 'crop', label: t('cmd.crop'), keywords: t('cmd.crop.kw'), enabled: hasPages, run: () => setPageDialog('crop') },
     { id: 'resize', label: t('cmd.resize'), keywords: t('cmd.resize.kw'), enabled: hasPages, run: () => setPageDialog('resize') },
     { id: 'protect', label: t('cmd.protect'), keywords: t('cmd.protect.kw'), enabled: !!tab, run: () => setProtectOpen(true) },
+    { id: 'export', label: t('cmd.export'), keywords: t('cmd.export.kw'), enabled: hasPages, run: () => setExportOpen(true) },
     { id: 'selectAll', label: t('cmd.selectAll'), enabled: hasPages && selected.size < pages.length, run: () => dispatch({ type: 'selectAll' }) },
     { id: 'selectNone', label: t('cmd.selectNone'), enabled: selected.size > 0, run: () => dispatch({ type: 'clearSelection' }) },
     { id: 'rotateRight', label: t('cmd.rotateRight'), keywords: t('cmd.rotate.kw'), enabled: selected.size > 0, run: () => dispatch({ type: 'rotate', ids: selectedInOrder(state), delta: 90 }) },
@@ -417,7 +463,7 @@ export default function App() {
       <input
         ref={fileInput}
         type="file"
-        accept="application/pdf,.pdf"
+        accept="application/pdf,.pdf,image/png,image/jpeg,image/webp,image/gif,image/bmp"
         multiple
         hidden
         data-testid="file-input"
@@ -534,6 +580,7 @@ export default function App() {
                 onResize={() => setPageDialog('resize')}
                 onProtect={() => setProtectOpen(true)}
                 protectActive={protectActive}
+                onExport={() => setExportOpen(true)}
               />
               <PageGrid
                 key={tab.id}
@@ -596,6 +643,7 @@ export default function App() {
         <MergeDialog tabs={ws.tabs} onMerge={mergeTabs} onClose={() => setMergeOpen(false)} />
       )}
 
+      {exportOpen && <ExportDialog scope={scope} onExport={exportPages} onClose={() => setExportOpen(false)} />}
       {protectOpen && (
         <ProtectDialog
           protect={protect}
