@@ -1,6 +1,7 @@
 // Comments that the user adds to a page, as plain data in page points (the page's own space,
 // before the extra rotation). They are drawn over the page and written as real PDF annotations
 // when saving, so other programs can read and edit them.
+import type { FieldSpec } from './formfields';
 import type { Size } from './readerLayout';
 import type { Box } from './textLayer';
 
@@ -19,7 +20,9 @@ export type AnnotKind =
   /** A clickable area; `contents` holds the address. */
   | 'link'
   /** An area to be removed for good when saving; `contents` is not used. */
-  | 'redact';
+  | 'redact'
+  /** A form field; `field` says what kind. */
+  | 'field';
 
 export type Pt = [number, number];
 
@@ -42,6 +45,8 @@ export interface Annot {
   width?: number;
   /** Font size of a text box, in points. */
   fontSize?: number;
+  /** The form field this stands for, when `kind` is 'field'. */
+  field?: FieldSpec;
   /** Written into the page itself when saving (text, pictures) instead of being a comment. */
   embed?: boolean;
   /** What a filled-in item is, for the list: a signature, initials, a check mark or a date. */

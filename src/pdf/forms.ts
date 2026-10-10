@@ -27,7 +27,13 @@ const kindOf = (w: PDFWidget): FieldKind | null => {
   return null; // push buttons and signature fields cannot be filled in
 };
 
+/**
+ * Whether a check box or radio button is chosen. The state of the button itself decides: the value
+ * of a radio group is the same for all of its buttons, so it says nothing about a single one.
+ */
 const isOn = (w: PDFWidget) => {
+  const state = w.getObject().get('AS');
+  if (state.isName()) return state.asName() !== 'Off';
   const v = w.getValue();
   return v !== '' && v !== 'Off';
 };
@@ -58,6 +64,7 @@ export function listFields(page: PDFPage): FormField[] {
 export function applyFields(page: PDFPage, values: Record<number, string>): () => void {
   const widgets = page.getWidgets();
   const before = widgets.map((w) => w.getValue());
+  const wasOn = widgets.map((w) => (w.isCheckbox() || w.isRadioButton() ? isOn(w) : false));
   for (const [key, value] of Object.entries(values)) {
     const w = widgets[Number(key)];
     if (!w || w.isReadOnly()) continue;
@@ -74,8 +81,7 @@ export function applyFields(page: PDFPage, values: Record<number, string>): () =
     widgets.forEach((w, i) => {
       try {
         if (w.isCheckbox() || w.isRadioButton()) {
-          const was = before[i] !== '' && before[i] !== 'Off';
-          if (isOn(w) !== was) w.toggle();
+          if (isOn(w) !== wasOn[i]) w.toggle();
         } else if (w.getValue() !== before[i]) {
           if (w.isText()) w.setTextValue(before[i]);
           else if (w.isChoice()) w.setChoiceValue(before[i]);

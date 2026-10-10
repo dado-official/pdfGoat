@@ -950,3 +950,7 @@ textarea.form-field { padding-top: 2px; resize: none; line-height: 1.2; }
 .batch-rows li[data-state='done'] span:last-child { color: var(--signal-deep); }
 .bookmarks-list { width: 260px; }
 .bookmarks-list li.side-empty { padding: 12px; }
+.field-editor { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.field-editor label { display: flex; flex-direction: column; gap: 3px; }
+.field-editor label.check { flex-direction: row; align-items: center; gap: 6px; }
+.field-editor input:not([type='checkbox']), .field-editor textarea { padding: 5px 7px; border: 1px solid var(--edge); border-radius: var(--radius); font: inherit; }

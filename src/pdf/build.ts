@@ -10,11 +10,15 @@ import { applyPageBox } from './pagebox';
 import { applyEdits } from './edit';
 import { cleanPdf, redactPage } from './protect';
 import { writeOutline } from './outline';
+import { addFormFields, deleteFormFields } from './fields';
+import { listFields } from './forms';
+import { uniqueNames } from '../core/formfields';
 import type { ResolvedBookmark } from '../core/bookmarks';
 import { compressPictures } from './compress';
 import type { Compression } from '../core/compress';
 import { encryptionOptions, isCleaning, type Cleaning, type Protection } from '../core/protect';
 import { markPosition, markText } from '../core/marks';
+import type { Annot } from '../core/annotations';
 import type { PageRef } from '../core/types';
 
 /** What building needs from an opened file. */
@@ -156,6 +160,8 @@ export async function buildPdf(
         if (p.removed?.length) deleteComments(doc.loadPage(p.srcIndex), p.removed);
         // The same for the values typed into form fields.
         if (p.fields && Object.keys(p.fields).length) applyFields(doc.loadPage(p.srcIndex), p.fields);
+        // Fields of the file that the user deleted.
+        if (p.removedFields?.length) deleteFormFields(doc, doc.loadPage(p.srcIndex), p.removedFields);
       }
       engine.keepPages(doc, part.refs.map((p) => p.srcIndex));
       onProgress?.(list.indexOf(part) + 1, total);
@@ -179,6 +185,17 @@ export async function buildPdf(
       engine.appendDocument(out, part.doc!, named && part.primary && !part.source.generated ? title(part.source) : undefined);
     }
     engine.keepPages(out, pages.map((p) => position.get(p.id)!));
+
+    // New form fields. Their names must differ from each other and from the names in the file.
+    const newFields = pages.flatMap((p, i) => (p.annots ?? []).filter((a) => a.kind === 'field' && a.field).map((a) => ({ i, a })));
+    if (newFields.length) {
+      const taken = new Set<string>();
+      for (let i = 0; i < out.countPages(); i++) for (const f of listFields(out.loadPage(i))) taken.add(f.name);
+      const names = uniqueNames(newFields.map(({ a }) => ({ name: a.field!.name, radio: a.field!.type === 'radio' })), taken);
+      const byPage = new Map<number, { box: Annot['box']; spec: NonNullable<Annot['field']>; name: string }[]>();
+      newFields.forEach(({ i, a }, k) => byPage.set(i, [...(byPage.get(i) ?? []), { box: a.box, spec: a.field!, name: names[k] }]));
+      for (const [i, list] of byPage) addFormFields(engine, out, out.loadPage(i), list);
+    }
 
     // Changed text and pictures: the old ones are cut out of the page, the new ones written in.
     pages.forEach((p, i) => {

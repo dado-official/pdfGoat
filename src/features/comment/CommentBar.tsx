@@ -3,7 +3,7 @@ import { useI18n } from '../../i18n/context';
 import type { MessageKey as TKey } from '../../i18n/de';
 import Icon, { type IconName } from '../../ui/Icon';
 import { STAMPS, type StampName } from './stamps';
-import { EDIT_TOOLS, FILL_TOOLS, INSERT_TOOLS, PROTECT_TOOLS, TOOLS, type Tool } from './tools';
+import { EDIT_TOOLS, FIELD_TOOLS, FILL_TOOLS, INSERT_TOOLS, PROTECT_TOOLS, TOOLS, type Tool } from './tools';
 
 interface Props {
   tool: Tool;
@@ -26,6 +26,7 @@ const GROUPS: { caption: TKey; label: TKey; tools: readonly Exclude<Tool, null>[
   { caption: 'ribbon.fill', label: 'comment.fillTools', tools: FILL_TOOLS },
   { caption: 'ribbon.insert', label: 'comment.insertTools', tools: INSERT_TOOLS },
   { caption: 'ribbon.edit', label: 'comment.editTools', tools: EDIT_TOOLS },
+  { caption: 'ribbon.fields', label: 'comment.fieldTools', tools: FIELD_TOOLS },
   { caption: 'ribbon.protect', label: 'comment.protectTools', tools: PROTECT_TOOLS },
 ];
 

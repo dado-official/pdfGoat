@@ -9,6 +9,7 @@ import { getFields, getImagePng, getImages, getLinks, getText, renderPage, type 
 import FormLayer from '../form/FormLayer';
 import EditLayer from '../edit/EditLayer';
 import { lineBox, type Edit } from '../../core/edits';
+import type { FieldType } from '../../core/formfields';
 import { ocrLines } from '../../core/ocr';
 import { useNearViewport } from '../../ui/useNearViewport';
 import AnnotLayer from '../comment/AnnotLayer';
@@ -41,6 +42,7 @@ interface Props {
   stamp: { name: StampName; text: string };
   dateText: string;
   picture: Picture | null;
+  fieldDefaults: (type: FieldType) => { name: string; exportValue: string };
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onAnnots: (page: PageRef, annots: Annot[]) => void;
@@ -68,7 +70,7 @@ function naturalWidth(text: string, size: number): number {
 const MAX_RENDER_WIDTH = 2400;
 
 /** One page of the reading view. It has its final size from the start and draws itself while it is near the screen. */
-function ReadPage({ page, doc, number, total, width, height, damaged, size, scale, hits, linkTarget, onGo, tool, color, stamp, dateText, picture, selectedId, onSelect, onAnnots, onPlaced, onFill, onEdits }: Props) {
+function ReadPage({ page, doc, number, total, width, height, damaged, size, scale, hits, linkTarget, onGo, tool, color, stamp, dateText, picture, fieldDefaults, selectedId, onSelect, onAnnots, onPlaced, onFill, onEdits }: Props) {
   const { t } = useI18n();
   const root = useRef<HTMLDivElement>(null);
   const near = useNearViewport(root);
@@ -301,7 +303,7 @@ function ReadPage({ page, doc, number, total, width, height, damaged, size, scal
       )}
       {!problem && fieldList && (
         <FormLayer
-          fields={fieldList}
+          fields={fieldList.filter((f) => !page.removedFields?.includes(f.index))}
           values={page.fields ?? NO_VALUES}
           size={size}
           rotation={page.rotation}
@@ -321,6 +323,7 @@ function ReadPage({ page, doc, number, total, width, height, damaged, size, scal
           stamp={stamp}
           dateText={dateText}
           picture={picture}
+          fieldDefaults={fieldDefaults}
           selectedId={selectedId}
           onSelect={onSelect}
           onChange={(annots) => onAnnots(page, annots)}

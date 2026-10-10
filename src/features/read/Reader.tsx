@@ -20,7 +20,8 @@ import { boxBetween, isMarkup, mergeLineBoxes, screenToPage, unionOf, COMMENT_CO
 import type { PageRef } from '../../core/types';
 import type { ReaderMemory } from '../../state/workspace';
 import { useI18n } from '../../i18n/context';
-import { getComments, getOutline, type SourceDoc } from '../../pdf/view';
+import { freeName, type FieldType } from '../../core/formfields';
+import { getComments, getFields, getOutline, type FormField, type SourceDoc } from '../../pdf/view';
 import CommentBar from '../comment/CommentBar';
 import CommentPanel, { type FileComments } from '../comment/CommentPanel';
 import { useClearSelection, type Picture, type Tool } from '../comment/tools';
@@ -55,10 +56,12 @@ interface Props {
   protectActive: boolean;
   /** Bookmarks the user set up; they are shown instead of the files' own. */
   bookmarks: Bookmark[] | null;
+  /** Sets which form fields of the file are deleted on a page. */
+  onDropFields: (pageId: string, indices: number[]) => void;
 }
 
 /** Continuous view of all pages with zoom and keyboard paging. */
-export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb, memory, onMemory, onAnnotate, onFill, onEdit, onProtect, protectActive, bookmarks }: Props) {
+export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb, memory, onMemory, onAnnotate, onFill, onEdit, onProtect, protectActive, bookmarks, onDropFields }: Props) {
   const { t, lang } = useI18n();
   const scroller = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState<Size>({ width: 800, height: 600 });
@@ -88,6 +91,7 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
   const fill = useCallback((page: PageRef, fields: Record<number, string>) => onFill(page.id, fields), [onFill]);
   const [fileComments, setFileComments] = useState<FileComments>({});
   const askedComments = useRef(new Set<string>());
+  const [fileFields, setFileFields] = useState<Record<string, FormField[]>>({});
   const stampText = t(`stamp.${stampName}`);
   const stamp = useMemo(() => ({ name: stampName, text: stampText }), [stampName, stampText]);
   useClearSelection(setSelectedId);
@@ -99,6 +103,9 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
       const key = `${p.docId}:${p.srcIndex}`;
       if (askedComments.current.has(key) || !docs[p.docId]) continue;
       askedComments.current.add(key);
+      getFields(docs[p.docId], p.srcIndex)
+        .then((list) => list.length && setFileFields((c) => ({ ...c, [key]: list })))
+        .catch(() => undefined);
       getComments(docs[p.docId], p.srcIndex)
         .then((list) => list.length && setFileComments((c) => ({ ...c, [key]: list })))
         .catch(() => undefined);
@@ -106,6 +113,20 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
   }, [panel, pages, docs]);
 
   const endTool = useCallback(() => setTool(null), []);
+  /** Name (and value of a radio button) for a new form field: free names, and radio buttons join the last group. */
+  const fieldDefaults = useCallback(
+    (type: FieldType) => {
+      const specs = pages.flatMap((p) => (p.annots ?? []).flatMap((a) => (a.field ? [a.field] : [])));
+      const taken = new Set([...specs.map((f) => f.name), ...Object.values(fileFields).flat().map((f) => f.name)]);
+      if (type === 'radio') {
+        const group = specs.filter((f) => f.type === 'radio').at(-1)?.name ?? freeName(t('field.base.radio'), taken);
+        const inGroup = specs.filter((f) => f.type === 'radio' && f.name === group).length;
+        return { name: group, exportValue: `${t('field.value')} ${inGroup + 1}` };
+      }
+      return { name: freeName(t(`field.base.${type}` as 'field.base.text'), taken), exportValue: '' };
+    },
+    [pages, fileFields, t],
+  );
   const annotate = useCallback(
     (page: PageRef, annots: Annot[]) => onAnnotate(page.id, annots, page.removed ?? []),
     [onAnnotate],
@@ -518,6 +539,7 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
               picture={picture}
               onFill={fill}
               onEdits={editPage}
+              fieldDefaults={fieldDefaults}
               selectedId={selectedId}
               onSelect={setSelectedId}
               onAnnots={annotate}
@@ -569,6 +591,8 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
           onGo={go}
           onChange={(index, annots) => annotate(pages[index], annots)}
           onEdits={(index, edits) => editPage(pages[index], edits)}
+          fileFields={fileFields}
+          onDropField={(index, n) => onDropFields(pages[index].id, [...(pages[index].removedFields ?? []), n])}
           onRemoveFile={(index, n) => onAnnotate(pages[index].id, pages[index].annots ?? [], [...(pages[index].removed ?? []), n])}
         />
       )}

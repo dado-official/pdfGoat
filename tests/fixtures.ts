@@ -333,3 +333,31 @@ export async function outlineOf(bytes: Uint8Array): Promise<{ title: string; pag
     doc.destroy();
   }
 }
+
+/** Kind and name of every form field, in the order of the widgets of the first page (read by MuPDF). */
+export async function formFieldsOf(bytes: Uint8Array): Promise<[string, string][]> {
+  const { PDFDocument: MuPdf } = await import('mupdf');
+  const doc = new MuPdf(bytes);
+  try {
+    return doc.loadPage(0).getWidgets().map((w) => [w.getFieldType(), w.getName()] as [string, string]);
+  } finally {
+    doc.destroy();
+  }
+}
+
+/** The values of the fields of the first page: text, 'on' or 'off' for buttons (read by MuPDF). */
+export async function formValues2(bytes: Uint8Array): Promise<string[]> {
+  const { PDFDocument: MuPdf } = await import('mupdf');
+  const doc = new MuPdf(bytes);
+  try {
+    return doc.loadPage(0).getWidgets().map((w) => {
+      if (w.isCheckbox() || w.isRadioButton()) {
+        const state = w.getObject().get('AS');
+        return state.isName() && state.asName() !== 'Off' ? 'on' : 'off';
+      }
+      return w.getValue();
+    });
+  } finally {
+    doc.destroy();
+  }
+}

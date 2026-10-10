@@ -28,6 +28,8 @@ export type Change =
   | { type: 'crop'; crops: Record<string, Box | null> }
   /** Sets a new size for pages, in points as shown, by page id (null: keep the size). */
   | { type: 'resize'; sizes: Record<string, [number, number] | null> }
+  /** Sets which form fields of the file are deleted on one page (positions among its widgets). */
+  | { type: 'dropFields'; id: string; indices: number[] }
   /** Replaces the bookmarks of the whole document. */
   | { type: 'outline'; items: Bookmark[] | null }
   /** Sets the words found by text recognition, by page id (null: remove them). */
@@ -133,6 +135,16 @@ export function applyChange(pages: PageRef[], change: Change): PageRef[] {
         return { ...p, size };
       });
       return changed ? next : pages;
+    }
+
+    case 'dropFields': {
+      const i = pages.findIndex((p) => p.id === change.id);
+      if (i < 0) return pages;
+      const old = pages[i].removedFields ?? [];
+      if (old.length === change.indices.length && change.indices.every((n, k) => n === old[k])) return pages;
+      const next = [...pages];
+      next[i] = { ...pages[i], removedFields: change.indices.length ? change.indices : undefined };
+      return next;
     }
 
     case 'outline':

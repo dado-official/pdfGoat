@@ -7,7 +7,8 @@ import { unsupportedChars } from '../../core/winansi';
 import type { PageRef } from '../../core/types';
 import type { MessageKey } from '../../i18n/de';
 import { useI18n } from '../../i18n/context';
-import type { FileComment } from '../../pdf/view';
+import type { FileComment, FormField } from '../../pdf/view';
+import type { FieldSpec } from '../../core/formfields';
 
 /** Comments that a file already had, by `docId:srcIndex`. */
 export type FileComments = Record<string, FileComment[]>;
@@ -21,12 +22,16 @@ interface Props {
   onChange: (pageIndex: number, annots: Annot[]) => void;
   onEdits: (pageIndex: number, edits: Edit[]) => void;
   onRemoveFile: (pageIndex: number, index: number) => void;
+  /** Form fields of the files, by `docId:srcIndex`, and deleting one of them. */
+  fileFields: Record<string, FormField[]>;
+  onDropField: (pageIndex: number, index: number) => void;
 }
 
 type Entry =
   | { key: string; page: number; top: number; mine: Annot }
   | { key: string; page: number; top: number; file: FileComment }
-  | { key: string; page: number; top: number; edit: Edit };
+  | { key: string; page: number; top: number; edit: Edit }
+  | { key: string; page: number; top: number; formField: FormField };
 
 const FILE_KINDS: Record<string, MessageKey> = {
   Highlight: 'comment.kind.highlight',
@@ -42,13 +47,14 @@ const FILE_KINDS: Record<string, MessageKey> = {
 };
 
 const kindLabel = (a: Annot): MessageKey =>
-  a.kind === 'redact' ? 'comment.kind.redact'
+  a.kind === 'field' ? (`comment.kind.field.${a.field?.type ?? 'text'}` as MessageKey)
+  : a.kind === 'redact' ? 'comment.kind.redact'
   : a.embed && a.kind === 'text' ? 'comment.kind.embedText'
   : a.embed && a.kind === 'stamp' ? 'comment.kind.embedImage'
   : (`comment.kind.${a.tag ?? a.kind}` as MessageKey);
 
 /** The comment list on the right: the file's own comments and the new ones, page by page. */
-export default function CommentPanel({ pages, fileComments, selectedId, onSelect, onGo, onChange, onEdits, onRemoveFile }: Props) {
+export default function CommentPanel({ pages, fileComments, selectedId, onSelect, onGo, onChange, onEdits, onRemoveFile, fileFields, onDropField }: Props) {
   const { t } = useI18n();
   const entries = useMemo(() => {
     const list: Entry[] = [];
@@ -57,11 +63,14 @@ export default function CommentPanel({ pages, fileComments, selectedId, onSelect
       for (const fc of fileComments[`${p.docId}:${p.srcIndex}`] ?? []) {
         if (!gone.has(fc.index)) list.push({ key: `f${p.id}:${fc.index}`, page, top: fc.box[1], file: fc });
       }
+      for (const ff of fileFields[`${p.docId}:${p.srcIndex}`] ?? []) {
+        if (!(p.removedFields ?? []).includes(ff.index)) list.push({ key: `w${p.id}:${ff.index}`, page, top: ff.box[1], formField: ff });
+      }
       for (const a of p.annots ?? []) list.push({ key: a.id, page, top: a.box[1], mine: a });
       for (const edit of p.edits ?? []) list.push({ key: edit.id, page, top: edit.box[1], edit });
     });
     return list.sort((a, b) => a.page - b.page || a.top - b.top);
-  }, [pages, fileComments]);
+  }, [pages, fileComments, fileFields]);
 
   return (
     <aside className="comment-panel" aria-label={t('comment.panelLabel')}>
@@ -70,6 +79,19 @@ export default function CommentPanel({ pages, fileComments, selectedId, onSelect
       ) : (
         <ul>
           {entries.map((e) => {
+            if ('formField' in e) {
+              const ff = e.formField;
+              return (
+                <li key={e.key} className="comment-item">
+                  <button className="comment-head" onClick={() => onGo(e.page)}>
+                    <span>{t('comment.kind.formField')}</span>
+                    <span className="comment-page">{t('comment.onPage', { number: e.page + 1 })}</span>
+                  </button>
+                  <p className="comment-text">{ff.name}</p>
+                  <button className="comment-delete" onClick={() => onDropField(e.page, ff.index)}>{t('comment.delete')}</button>
+                </li>
+              );
+            }
             if ('edit' in e) {
               return (
                 <EditItem
@@ -120,7 +142,13 @@ export default function CommentPanel({ pages, fileComments, selectedId, onSelect
                   <span>{t(kindLabel(a))}</span>
                   <span className="comment-page">{t('comment.onPage', { number: e.page + 1 })}</span>
                 </button>
-                {a.kind === 'redact' ? (
+                {a.kind === 'field' && a.field ? (
+                  selected ? (
+                    <FieldEditor key={a.id} spec={a.field} onChange={(field) => onChange(e.page, annots.map((x) => (x.id === a.id ? { ...x, field } : x)))} />
+                  ) : (
+                    <p className="comment-text">{a.field.name}</p>
+                  )
+                ) : a.kind === 'redact' ? (
                   <p className="comment-author">{t('redact.note')}</p>
                 ) : selected ? (
                   <CommentEditor
@@ -280,5 +308,65 @@ function EditText({ value, onCommit }: { value: string; onCommit: (text: string)
       <input className="comment-edit" aria-label={t('edit.newText')} autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={() => draft !== value && onCommit(draft)} onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()} />
       {missing.length > 0 && <p className="sign-problem" role="status">{t('comment.missingChars', { chars: missing.join(' ') })}</p>}
     </>
+  );
+}
+
+/** The settings of a form field the user added. Texts are recorded when the field is left. */
+function FieldEditor({ spec, onChange }: { spec: FieldSpec; onChange: (f: FieldSpec) => void }) {
+  const { t } = useI18n();
+  const [name, setName] = useState(spec.name);
+  const [options, setOptions] = useState(spec.options.join('\n'));
+  const [value, setValue] = useState(spec.exportValue);
+  const latest = useRef({ spec, name, options, value, onChange });
+  useEffect(() => {
+    latest.current = { spec, name, options, value, onChange };
+  });
+  const commit = () => {
+    const l = latest.current;
+    const entries = l.options.split('\n').map((o) => o.trim()).filter(Boolean);
+    const next = { ...l.spec, name: l.name.trim() || l.spec.name, options: l.spec.type === 'choice' ? entries : l.spec.options, exportValue: l.value };
+    if (next.name !== l.spec.name || next.exportValue !== l.spec.exportValue || next.options.join('\n') !== l.spec.options.join('\n')) l.onChange(next);
+  };
+  // A click elsewhere removes this editor without leaving the field first.
+  useEffect(() => commit, []); // eslint-disable-line
+  return (
+    <div className="field-editor">
+      <label>
+        {t('field.name')}
+        <input value={name} onChange={(e) => setName(e.target.value)} onBlur={commit} />
+      </label>
+      {spec.type === 'radio' && (
+        <label>
+          {t('field.exportValue')}
+          <input value={value} onChange={(e) => setValue(e.target.value)} onBlur={commit} />
+        </label>
+      )}
+      {spec.type === 'choice' && (
+        <>
+          <label>
+            {t('field.options')}
+            <textarea rows={3} value={options} onChange={(e) => setOptions(e.target.value)} onBlur={commit} />
+          </label>
+          <label className="check">
+            <input type="checkbox" checked={spec.combo} onChange={(e) => onChange({ ...spec, combo: e.target.checked })} />
+            {t('field.combo')}
+          </label>
+        </>
+      )}
+      {spec.type === 'text' && (
+        <label className="check">
+          <input type="checkbox" checked={spec.multiline} onChange={(e) => onChange({ ...spec, multiline: e.target.checked })} />
+          {t('field.multiline')}
+        </label>
+      )}
+      <label className="check">
+        <input type="checkbox" checked={spec.required} onChange={(e) => onChange({ ...spec, required: e.target.checked })} />
+        {t('field.required')}
+      </label>
+      <label className="check">
+        <input type="checkbox" checked={spec.readOnly} onChange={(e) => onChange({ ...spec, readOnly: e.target.checked })} />
+        {t('field.readOnly')}
+      </label>
+    </div>
   );
 }

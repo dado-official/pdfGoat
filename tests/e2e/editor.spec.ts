@@ -1,7 +1,7 @@
 import { expect, test as base, type Download, type Page } from '@playwright/test';
 import { unzipSync } from 'fflate';
 import { readFile, rm, writeFile } from 'node:fs/promises';
-import { annotationsOf, describePdf, makeContentPdf, makePhotoPdf, outlineOf, passwordInfo, fieldCount, formValues, imageCount, textOf, tinyPng, makeCommentedPdf, makeFormPdf, makeHalfBrokenPdf, makePdf, makeProtectedPdf, makeRichPdf } from '../fixtures';
+import { annotationsOf, describePdf, makeContentPdf, makePhotoPdf, outlineOf, formFieldsOf, formValues2, passwordInfo, fieldCount, formValues, imageCount, textOf, tinyPng, makeCommentedPdf, makeFormPdf, makeHalfBrokenPdf, makePdf, makeProtectedPdf, makeRichPdf } from '../fixtures';
 
 const pdfFile = (name: string, bytes: Uint8Array) => ({ name, mimeType: 'application/pdf', buffer: Buffer.from(bytes) });
 
@@ -1382,6 +1382,71 @@ test.describe('bookmarks', () => {
     await expect(page.locator('.outline').getByText('R Drei')).toHaveCount(0);
     await page.getByRole('button', { name: 'Rückgängig' }).click();
     await expect(page.locator('.outline').getByText('R Drei')).toBeVisible();
+  });
+});
+
+test.describe('creating form fields', () => {
+  const tool = (page: Page, name: string) => page.getByRole('button', { name, exact: true });
+
+  async function openOne(page: Page, bytes: Uint8Array) {
+    await page.getByTestId('file-input').setInputFiles(pdfFile('leer.pdf', bytes));
+    await expect(page.locator('.card img').first()).toBeVisible();
+    await page.getByRole('button', { name: 'Lesen', exact: true }).click();
+    await expect(page.locator('.read-page img').first()).toBeVisible();
+  }
+
+  async function download(page: Page) {
+    const file = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'PDF speichern' }).click();
+    return downloadBytes(await file);
+  }
+
+  test('adds fields of every kind, saves them as real form fields and fills them in again', async ({ app: page }) => {
+    await openOne(page, await makePdf([{ width: 595 }]));
+    const sheet = page.locator('.read-page').first();
+    await tool(page, 'Eingabefeld').click();
+    await sheet.click({ position: { x: 100, y: 100 } });
+    await page.getByRole('button', { name: /^Kommentare \(/ }).click();
+    const name = page.getByLabel('Name des Feldes');
+    await name.fill('Vorname');
+    await name.blur();
+    await tool(page, 'Kästchen').click();
+    await sheet.click({ position: { x: 100, y: 160 } });
+    await tool(page, 'Optionsfeld').click();
+    await sheet.click({ position: { x: 100, y: 210 } });
+    await tool(page, 'Optionsfeld').click();
+    await sheet.click({ position: { x: 160, y: 210 } });
+    await tool(page, 'Auswahlliste').click();
+    await sheet.click({ position: { x: 100, y: 260 } });
+    await page.getByLabel('Einträge, einer pro Zeile').fill('Rot\nGrün\nBlau');
+    await page.getByLabel('Einträge, einer pro Zeile').blur();
+
+    const bytes = await download(page);
+    expect((await formFieldsOf(bytes)).map(([k, n]) => `${k}:${n}`)).toEqual(['text:Vorname', 'checkbox:Kästchen 1', 'radiobutton:Auswahl 1', 'radiobutton:Auswahl 1', 'combobox:Liste 1']);
+
+    // The saved file opens with fillable fields.
+    await page.getByTestId('file-input').setInputFiles(pdfFile('mit-feldern.pdf', bytes));
+    await expect(page.getByRole('tab')).toHaveCount(2);
+    await page.getByRole('button', { name: 'Lesen', exact: true }).click();
+    await expect(page.getByRole('textbox', { name: 'Vorname' })).toBeVisible();
+    await page.getByRole('textbox', { name: 'Vorname' }).fill('Erika');
+    await page.getByRole('textbox', { name: 'Vorname' }).blur();
+    await page.getByRole('radio', { name: 'Auswahl 1' }).nth(1).click();
+    await expect(page.getByRole('radio', { name: 'Auswahl 1' }).nth(0)).toHaveAttribute('aria-checked', 'false');
+    await expect(page.getByRole('radio', { name: 'Auswahl 1' }).nth(1)).toHaveAttribute('aria-checked', 'true');
+    await page.getByRole('combobox', { name: 'Liste 1' }).selectOption('Grün');
+    const filled = await download(page);
+    expect((await formValues2(filled)).sort()).toEqual(['Erika', 'Grün', 'off', 'off', 'on'].sort());
+  });
+
+  test('deletes a field of the file', async ({ app: page }) => {
+    await openOne(page, await makeFormPdf());
+    await page.getByRole('button', { name: /^Kommentare \(/ }).click();
+    await expect(page.locator('.comment-item').filter({ hasText: 'agree' })).toBeVisible();
+    await page.locator('.comment-item').filter({ hasText: 'agree' }).getByRole('button', { name: 'Löschen' }).click();
+    await expect(page.getByRole('checkbox', { name: 'agree' })).toHaveCount(0);
+    const bytes = await download(page);
+    expect((await formFieldsOf(bytes)).map(([, n]) => n)).toEqual(['name', 'colour', 'colour', 'colour', 'country']);
   });
 });
 

@@ -69,6 +69,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case 'edit':
     case 'ocr':
     case 'outline':
+    case 'dropFields':
       return record(state, action);
 
     case 'toggleSelect': {

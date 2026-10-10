@@ -24,6 +24,8 @@ export interface PageRef {
   ocr?: OcrWord[];
   /** Changes to the page's existing text and pictures. */
   edits?: Edit[];
+  /** Positions (among the page's widgets) of form fields of the file that were deleted. */
+  removedFields?: number[];
   /** Positions of the comments already in the file that were deleted (see `listComments`). */
   removed?: number[];
 }

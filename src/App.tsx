@@ -600,6 +600,7 @@ export default function App() {
                 onProtect={() => setProtectOpen(true)}
                 protectActive={protectActive}
                 bookmarks={bookmarks}
+                onDropFields={(id, indices) => dispatch({ type: 'dropFields', id, indices })}
               />
             ) : tab ? (
               <>

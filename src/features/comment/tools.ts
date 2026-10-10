@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import type { AnnotKind } from '../../core/annotations';
 
 /** What the pointer does on a page: nothing special (select and read), or draw this kind. */
-export type Tool = AnnotKind | 'date' | 'check' | 'signature' | 'initials' | 'embedText' | 'embedImage' | 'editText' | 'editImage' | 'redact' | null;
+export type Tool = AnnotKind | 'date' | 'check' | 'signature' | 'initials' | 'embedText' | 'embedImage' | 'editText' | 'editImage' | 'redact' | 'fieldText' | 'fieldCheck' | 'fieldRadio' | 'fieldChoice' | null;
 
 /** A picture the user made (signature or initials), ready to be placed. */
 export interface Picture {
@@ -19,12 +19,15 @@ export const INSERT_TOOLS = ['embedText', 'embedImage', 'link'] as const;
 /** Tools that change what the page already contains. */
 export const EDIT_TOOLS = ['editText', 'editImage'] as const;
 
+/** Tools that add form fields. */
+export const FIELD_TOOLS = ['fieldText', 'fieldCheck', 'fieldRadio', 'fieldChoice'] as const;
+
 /** Tools that take things out of the file for good. */
 export const PROTECT_TOOLS = ['redact'] as const;
 
 export const TOOLS = ['highlight', 'underline', 'strikeout', 'note', 'text', 'ink', 'square', 'circle', 'line', 'arrow', 'stamp'] as const;
 
-const DRAWN: ReadonlySet<string> = new Set(['note', 'text', 'ink', 'square', 'circle', 'line', 'arrow', 'stamp', 'date', 'check', 'signature', 'initials', 'embedText', 'embedImage', 'link', 'redact']);
+const DRAWN: ReadonlySet<string> = new Set(['note', 'text', 'ink', 'square', 'circle', 'line', 'arrow', 'stamp', 'date', 'check', 'signature', 'initials', 'embedText', 'embedImage', 'link', 'redact', 'fieldText', 'fieldCheck', 'fieldRadio', 'fieldChoice']);
 export const isDrawTool = (tool: Tool): tool is Exclude<Tool, null | 'highlight' | 'underline' | 'strikeout'> => tool !== null && DRAWN.has(tool);
 
 /** Deselect when the pointer ends up on the page itself, not on a comment. */

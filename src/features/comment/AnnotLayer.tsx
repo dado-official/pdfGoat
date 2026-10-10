@@ -11,6 +11,7 @@ import {
 import type { Size } from '../../core/readerLayout';
 import { overlayTransform } from '../../core/textLayer';
 import { makeStamp, type StampName } from './stamps';
+import { FIELD_SIZES, newField, type FieldType } from '../../core/formfields';
 import { makeCheck } from './pictures';
 import { isDrawTool, type Picture, type Tool } from './tools';
 
@@ -25,6 +26,8 @@ interface Props {
   /** Today's date as it is written into the page, and the signature or initials waiting to be placed. */
   dateText: string;
   picture: Picture | null;
+  /** Name and value for a new form field of a type. */
+  fieldDefaults: (type: FieldType) => { name: string; exportValue: string };
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onChange: (annots: Annot[]) => void;
@@ -43,7 +46,7 @@ const shift = (a: Annot, dx: number, dy: number): Annot => ({
 });
 
 /** Comments of one page, drawn over it, and the pointer handling that creates and moves them. */
-export default function AnnotLayer({ size, rotation, scale, annots, tool, color, stamp, dateText, picture, selectedId, onSelect, onChange, onPlaced }: Props) {
+export default function AnnotLayer({ size, rotation, scale, annots, tool, color, stamp, dateText, picture, fieldDefaults, selectedId, onSelect, onChange, onPlaced }: Props) {
   const [draft, setDraft] = useState<{ start: Pt; points: Pt[] } | null>(null);
   const [moving, setMoving] = useState<{ id: string; from: Pt; dx: number; dy: number } | null>(null);
   const drawing = isDrawTool(tool);
@@ -81,6 +84,18 @@ export default function AnnotLayer({ size, rotation, scale, annots, tool, color,
       case 'embedText': {
         const box = dist > 12 ? boxBetween(d.start, end) : ([d.start[0], d.start[1], d.start[0] + 200, d.start[1] + 30] as const);
         made = { ...base, kind: 'text', embed: true, box: [...box], fontSize: 12 };
+        break;
+      }
+      case 'fieldText':
+      case 'fieldCheck':
+      case 'fieldRadio':
+      case 'fieldChoice': {
+        const type = kind.slice(5).toLowerCase() as FieldType;
+        const [w, h] = FIELD_SIZES[type];
+        const small = type === 'check' || type === 'radio';
+        const box = dist > 8 && !small ? boxBetween(d.start, end) : small ? ([d.start[0] - w / 2, d.start[1] - h / 2, d.start[0] + w / 2, d.start[1] + h / 2] as const) : ([d.start[0], d.start[1], d.start[0] + w, d.start[1] + h] as const);
+        const { name, exportValue } = fieldDefaults(type);
+        made = { ...base, kind: 'field', color: '#3347c9', box: [...box], field: newField(type, name, exportValue) };
         break;
       }
       case 'redact':
@@ -299,6 +314,26 @@ function Shape({ a, selected, onDown, onMove, onUp }: ShapeProps) {
         </g>
       );
     }
+    case 'field': {
+      const f = a.field;
+      const radio = f?.type === 'radio';
+      return (
+        <g {...handlers} className="annot-shape" style={{ pointerEvents: 'all' }}>
+          {radio ? (
+            <ellipse cx={(a.box[0] + a.box[2]) / 2} cy={(a.box[1] + a.box[3]) / 2} rx={(a.box[2] - a.box[0]) / 2} ry={(a.box[3] - a.box[1]) / 2} fill="rgb(51 71 201 / 0.1)" stroke={a.color} strokeWidth={1} />
+          ) : (
+            <rect x={a.box[0]} y={a.box[1]} width={a.box[2] - a.box[0]} height={a.box[3] - a.box[1]} fill="rgb(51 71 201 / 0.1)" stroke={a.color} strokeWidth={1} />
+          )}
+          {f && (f.type === 'text' || f.type === 'choice') && (
+            <text x={a.box[0] + 3} y={(a.box[1] + a.box[3]) / 2 + 3} fontSize={Math.min(10, (a.box[3] - a.box[1]) * 0.6)} fill={a.color} style={{ pointerEvents: 'none' }}>
+              {f.name}
+              {f.type === 'choice' ? ' ▾' : ''}
+            </text>
+          )}
+          {ring}
+        </g>
+      );
+    }
     case 'redact':
       return (
         <g {...handlers} className="annot-shape" style={{ pointerEvents: 'all' }}>
@@ -336,6 +371,6 @@ function Draft({ tool, color, d }: { tool: NonNullable<Tool>; color: string; d: 
   if (tool === 'line' || tool === 'arrow') return <line {...common} x1={d.start[0]} y1={d.start[1]} x2={end[0]} y2={end[1]} />;
   const b = boxBetween(d.start, end);
   if (tool === 'circle') return <ellipse {...common} cx={(b[0] + b[2]) / 2} cy={(b[1] + b[3]) / 2} rx={(b[2] - b[0]) / 2} ry={(b[3] - b[1]) / 2} />;
-  if (tool === 'square' || tool === 'text' || tool === 'stamp' || tool === 'signature' || tool === 'initials' || tool === 'embedText' || tool === 'embedImage' || tool === 'link' || tool === 'redact') return <rect {...common} x={b[0]} y={b[1]} width={b[2] - b[0]} height={b[3] - b[1]} />;
+  if (tool === 'square' || tool === 'text' || tool === 'stamp' || tool === 'signature' || tool === 'initials' || tool === 'embedText' || tool === 'embedImage' || tool === 'link' || tool === 'redact' || tool === 'fieldText' || tool === 'fieldCheck' || tool === 'fieldRadio' || tool === 'fieldChoice') return <rect {...common} x={b[0]} y={b[1]} width={b[2] - b[0]} height={b[3] - b[1]} />;
   return null;
 }

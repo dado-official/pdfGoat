@@ -571,6 +571,31 @@ export const de = {
   'bookmarks.titleField': 'Titel',
   'bookmarks.target': 'Springt zu',
   'bookmarks.noTarget': 'Kein Ziel',
+
+  // Form fields
+  'ribbon.fields': 'Formular',
+  'comment.fieldTools': 'Formularfelder anlegen',
+  'comment.tool.fieldText': 'Eingabefeld',
+  'comment.tool.fieldCheck': 'Kästchen',
+  'comment.tool.fieldRadio': 'Optionsfeld',
+  'comment.tool.fieldChoice': 'Auswahlliste',
+  'comment.kind.field.text': 'Formular: Textfeld',
+  'comment.kind.field.check': 'Formular: Kästchen',
+  'comment.kind.field.radio': 'Formular: Optionsfeld',
+  'comment.kind.field.choice': 'Formular: Auswahlliste',
+  'comment.kind.formField': 'Formularfeld der Datei',
+  'field.base.text': 'Textfeld',
+  'field.base.check': 'Kästchen',
+  'field.base.radio': 'Auswahl',
+  'field.base.choice': 'Liste',
+  'field.value': 'Wert',
+  'field.name': 'Name des Feldes',
+  'field.exportValue': 'Wert dieser Auswahl',
+  'field.options': 'Einträge, einer pro Zeile',
+  'field.combo': 'Aufklappbare Liste',
+  'field.multiline': 'Mehrere Zeilen',
+  'field.required': 'Pflichtfeld',
+  'field.readOnly': 'Nur lesen',
 } as const;
 
 export type MessageKey = keyof typeof de;
