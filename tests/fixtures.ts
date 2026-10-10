@@ -322,3 +322,14 @@ export async function makePhotoPdf(): Promise<Uint8Array> {
   page.drawImage(await doc.embedPng(png), { x: 50, y: 400, width: 450, height: 300 });
   return doc.save();
 }
+
+/** Title and page (from 0) of every top-level bookmark of a PDF. */
+export async function outlineOf(bytes: Uint8Array): Promise<{ title: string; page: number | null }[]> {
+  const { PDFDocument: MuPdf } = await import('mupdf');
+  const doc = new MuPdf(bytes);
+  try {
+    return (doc.loadOutline() ?? []).map((o) => ({ title: o.title ?? '', page: o.page ?? null }));
+  } finally {
+    doc.destroy();
+  }
+}

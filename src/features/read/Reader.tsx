@@ -15,6 +15,7 @@ import {
 import { placeOutline, type FileOutline } from '../../core/outline';
 import { boxOnScreen, type Box } from '../../core/textLayer';
 import type { Edit } from '../../core/edits';
+import { toPlaced, type Bookmark } from '../../core/bookmarks';
 import { boxBetween, isMarkup, mergeLineBoxes, screenToPage, unionOf, COMMENT_COLORS, DEFAULT_COLOR, type Annot } from '../../core/annotations';
 import type { PageRef } from '../../core/types';
 import type { ReaderMemory } from '../../state/workspace';
@@ -52,10 +53,12 @@ interface Props {
   /** Opens the dialog for passwords and the check before giving a file away. */
   onProtect: () => void;
   protectActive: boolean;
+  /** Bookmarks the user set up; they are shown instead of the files' own. */
+  bookmarks: Bookmark[] | null;
 }
 
 /** Continuous view of all pages with zoom and keyboard paging. */
-export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb, memory, onMemory, onAnnotate, onFill, onEdit, onProtect, protectActive }: Props) {
+export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb, memory, onMemory, onAnnotate, onFill, onEdit, onProtect, protectActive, bookmarks }: Props) {
   const { t, lang } = useI18n();
   const scroller = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState<Size>({ width: 800, height: 600 });
@@ -140,11 +143,12 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
   }, [sidebar, pages, docs]);
 
   const outline = useMemo(() => {
+    if (bookmarks) return toPlaced(bookmarks, pages);
     const files: FileOutline[] = [...new Set(pages.map((p) => p.docId))]
       .filter((id) => docs[id])
       .map((id) => ({ docId: id, name: docs[id].name, nodes: outlines[id] ?? [] }));
     return placeOutline(files, positions);
-  }, [pages, docs, outlines, positions]);
+  }, [pages, docs, outlines, positions, bookmarks]);
 
   const linkTarget = useCallback((docId: string, srcIndex: number) => positions.get(`${docId}:${srcIndex}`) ?? null, [positions]);
 

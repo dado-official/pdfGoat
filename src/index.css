@@ -948,3 +948,5 @@ textarea.form-field { padding-top: 2px; resize: none; line-height: 1.2; }
 .batch-rows li { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; border-bottom: 1px solid var(--edge); }
 .batch-rows li[data-state='failed'] span:last-child { color: var(--danger); }
 .batch-rows li[data-state='done'] span:last-child { color: var(--signal-deep); }
+.bookmarks-list { width: 260px; }
+.bookmarks-list li.side-empty { padding: 12px; }

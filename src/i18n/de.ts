@@ -552,6 +552,25 @@ export const de = {
   'step.rotate.90': '90° nach rechts',
   'step.rotate.180': '180°',
   'step.rotate.270': '90° nach links',
+
+  // Bookmarks
+  'pagetools.bookmarks': 'Lesezeichen',
+  'cmd.bookmarks': 'Lesezeichen bearbeiten',
+  'cmd.bookmarks.kw': 'inhaltsverzeichnis gliederung kapitel bookmarks',
+  'bookmarks.title': 'Lesezeichen bearbeiten',
+  'bookmarks.scope': 'Die Lesezeichen gelten für dieses Dokument. Sie folgen den Seiten, wenn du sie verschiebst.',
+  'bookmarks.apply': 'Übernehmen',
+  'bookmarks.reset': 'Die der Dateien wiederherstellen',
+  'bookmarks.loading': 'Lesezeichen werden gelesen …',
+  'bookmarks.add': 'Neu',
+  'bookmarks.newTitle': 'Neues Lesezeichen',
+  'bookmarks.outdent': 'Eine Ebene höher',
+  'bookmarks.indent': 'Eine Ebene tiefer',
+  'bookmarks.none': 'Keine Lesezeichen. Mit „Neu“ legst du das erste an.',
+  'bookmarks.pick': 'Wähle ein Lesezeichen aus der Liste.',
+  'bookmarks.titleField': 'Titel',
+  'bookmarks.target': 'Springt zu',
+  'bookmarks.noTarget': 'Kein Ziel',
 } as const;
 
 export type MessageKey = keyof typeof de;

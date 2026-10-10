@@ -2,7 +2,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { AppError } from './core/errors';
 import { outputBase, partName } from './core/ranges';
 import { toMegabytes } from './core/limits';
-import { canUndo, initialState, selectedInOrder, type EditorAction } from './state/editor';
+import { bookmarksOf, canUndo, initialState, selectedInOrder, type EditorAction } from './state/editor';
 import {
   activeTab,
   clonePages,
@@ -21,6 +21,8 @@ import { useFileDrop, useShortcuts } from './ui/useWindowEvents';
 import DropZone from './features/open/DropZone';
 import PasswordDialog from './features/open/PasswordDialog';
 import Reader from './features/read/Reader';
+import BookmarksDialog from './features/bookmarks/BookmarksDialog';
+import { resolveBookmarks } from './core/bookmarks';
 import BatchDialog from './features/batch/BatchDialog';
 import OcrDialog from './features/ocr/OcrDialog';
 import { ocrWidth, recognizePages, type OcrLang } from './pdf/ocr';
@@ -89,6 +91,7 @@ export default function App() {
   const [compareOpen, setCompareOpen] = useState(false);
   const [ocrOpen, setOcrOpen] = useState(false);
   const [batchOpen, setBatchOpen] = useState(false);
+  const [bookmarksOpen, setBookmarksOpen] = useState(false);
   // Protection and cleaning apply to everything that is saved, in every tab.
   const [protect, setProtect] = useState<Protection | null>(null);
   const [clean, setClean] = useState<Cleaning>(noCleaning);
@@ -256,11 +259,15 @@ export default function App() {
     }
   }
 
+  /** The bookmarks the user set up, written for the pages of a saved file; none when the files' own stay. */
+  const bookmarks = bookmarksOf(state);
+  const outlineFor = (list: PageRef[]) => (bookmarks ? resolveBookmarks(bookmarks, list) : undefined);
+
   const base = () => outputBase(ownPages.map((p) => docs[p.docId].name), t('file.merged'));
 
   const save = () =>
     run(t('busy.saving'), async (job) => {
-      download(await buildPdf(pages, docs, { ...job, flatten, date, protect, clean }), `${base()}.pdf`);
+      download(await buildPdf(pages, docs, { ...job, flatten, date, protect, clean, outline: outlineFor(pages) }), `${base()}.pdf`);
     });
 
   // Today's date for header and footer texts that contain {date}.
@@ -359,7 +366,7 @@ export default function App() {
     run(t('busy.splitting'), async (job) => {
       if (plan === 'selection') {
         const chosen = pages.filter((p) => selected.has(p.id));
-        download(await buildPdf(chosen, docs, { ...job, flatten, date, protect, clean }), `${base()}-${t('file.selection')}.pdf`);
+        download(await buildPdf(chosen, docs, { ...job, flatten, date, protect, clean, outline: outlineFor(chosen) }), `${base()}-${t('file.selection')}.pdf`);
         return;
       }
       const files = [];
@@ -372,6 +379,7 @@ export default function App() {
             date,
             protect,
             clean,
+            outline: outlineFor(group.map((k) => pages[k])),
             onProgress: (f) => job.onProgress?.((i + f) / plan.length),
           }),
         });
@@ -434,6 +442,7 @@ export default function App() {
     { id: 'crop', label: t('cmd.crop'), keywords: t('cmd.crop.kw'), enabled: hasPages, run: () => setPageDialog('crop') },
     { id: 'resize', label: t('cmd.resize'), keywords: t('cmd.resize.kw'), enabled: hasPages, run: () => setPageDialog('resize') },
     { id: 'protect', label: t('cmd.protect'), keywords: t('cmd.protect.kw'), enabled: !!tab, run: () => setProtectOpen(true) },
+    { id: 'bookmarks', label: t('cmd.bookmarks'), keywords: t('cmd.bookmarks.kw'), enabled: hasPages, run: () => setBookmarksOpen(true) },
     { id: 'batch', label: t('cmd.batch'), keywords: t('cmd.batch.kw'), enabled: true, run: () => setBatchOpen(true) },
     { id: 'ocr', label: t('cmd.ocr'), keywords: t('cmd.ocr.kw'), enabled: hasPages, run: () => setOcrOpen(true) },
     { id: 'compare', label: t('cmd.compare'), keywords: t('cmd.compare.kw'), enabled: ws.tabs.length > 1, run: () => setCompareOpen(true) },
@@ -590,6 +599,7 @@ export default function App() {
                 onEdit={(id, edits) => dispatch({ type: 'edit', id, edits })}
                 onProtect={() => setProtectOpen(true)}
                 protectActive={protectActive}
+                bookmarks={bookmarks}
               />
             ) : tab ? (
               <>
@@ -605,6 +615,7 @@ export default function App() {
                 onCompress={() => setCompressOpen(true)}
                 onOcr={() => setOcrOpen(true)}
                 onBatch={() => setBatchOpen(true)}
+                onBookmarks={() => setBookmarksOpen(true)}
                 canCompare={ws.tabs.length > 1}
                 onCompare={() => setCompareOpen(true)}
               />
@@ -669,6 +680,9 @@ export default function App() {
         <MergeDialog tabs={ws.tabs} onMerge={mergeTabs} onClose={() => setMergeOpen(false)} />
       )}
 
+      {bookmarksOpen && (
+        <BookmarksDialog pages={pages} docs={docs} current={bookmarks} onApply={(items) => dispatch({ type: 'outline', items })} onClose={() => setBookmarksOpen(false)} />
+      )}
       {batchOpen && <BatchDialog date={date} onClose={() => setBatchOpen(false)} />}
       {ocrOpen && (
         <OcrDialog
@@ -700,7 +714,7 @@ export default function App() {
         <CompressDialog
           scope={scope}
           onCompress={async (level: CompressLevel) => {
-            const options = { flatten, date, protect, clean };
+            const options = { flatten, date, protect, clean, outline: outlineFor(target) };
             const before = await buildPdf(target, docs, options);
             const bytes = await buildPdf(target, docs, { ...options, compress: LEVELS[level] });
             return { before: before.length, after: bytes.length, bytes };

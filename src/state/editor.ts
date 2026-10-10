@@ -1,6 +1,7 @@
 // Pure state logic for the editor: no DOM, no PDF. Everything here is unit-tested.
 // The document is the change list; the page list is derived from it.
 import { applyChange, normalizeRotation, replay, type Change } from '../core/changes';
+import type { Bookmark } from '../core/bookmarks';
 import type { PageRef } from '../core/types';
 
 export { normalizeRotation };
@@ -39,7 +40,8 @@ function keepExisting(selected: ReadonlySet<string>, pages: PageRef[]): Readonly
 /** Records a change, unless it has no effect. A new change ends the redo chain. */
 function record(state: EditorState, change: Change): EditorState {
   const pages = applyChange(state.pages, change);
-  if (pages === state.pages) return state;
+  // Bookmarks leave the pages as they are but are still a change.
+  if (pages === state.pages && change.type !== 'outline') return state;
   return {
     ...state,
     changes: [...state.changes, change],
@@ -66,6 +68,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case 'resize':
     case 'edit':
     case 'ocr':
+    case 'outline':
       return record(state, action);
 
     case 'toggleSelect': {
@@ -122,3 +125,12 @@ export const canUndo = (state: EditorState) => state.changes.length > state.lock
 /** Selected ids in page order (Set order is click order). */
 export const selectedInOrder = (state: EditorState) =>
   state.pages.filter((p) => state.selected.has(p.id)).map((p) => p.id);
+
+/** The bookmarks the user has set up, or null when the file's own are kept. */
+export function bookmarksOf(state: EditorState): Bookmark[] | null {
+  for (let i = state.changes.length - 1; i >= 0; i--) {
+    const change = state.changes[i];
+    if (change.type === 'outline') return change.items;
+  }
+  return null;
+}

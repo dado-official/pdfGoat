@@ -56,7 +56,7 @@ function stop(reason: unknown) {
 export async function buildPdf(
   pages: PageRef[],
   sources: Record<string, BuildSource>,
-  { onProgress, signal, flatten, date, numbering, protect, clean, compress }: JobOptions = {},
+  { onProgress, signal, flatten, date, numbering, protect, clean, compress, outline }: JobOptions = {},
 ): Promise<Uint8Array> {
   if (signal?.aborted) throw new CancelledError();
   // The worker has no access to the files, so the bytes of the files in use are handed over.
@@ -80,7 +80,7 @@ export async function buildPdf(
       onProgress,
     });
     // The bytes are copied, not moved: the opened files stay available for the next save.
-    const request: WorkerRequest = { id, pages, sources: payload, options: { flatten, date, numbering, protect, clean, compress } };
+    const request: WorkerRequest = { id, pages, sources: payload, options: { flatten, date, numbering, protect, clean, compress, outline } };
     worker!.postMessage(request);
   });
 }

@@ -549,4 +549,23 @@ export const en: Record<MessageKey, string> = {
   'step.rotate.90': '90° clockwise',
   'step.rotate.180': '180°',
   'step.rotate.270': '90° counter-clockwise',
+
+  // Bookmarks
+  'pagetools.bookmarks': 'Bookmarks',
+  'cmd.bookmarks': 'Edit bookmarks',
+  'cmd.bookmarks.kw': 'table of contents outline chapters',
+  'bookmarks.title': 'Edit bookmarks',
+  'bookmarks.scope': 'The bookmarks belong to this document. They follow the pages when you move them.',
+  'bookmarks.apply': 'Apply',
+  'bookmarks.reset': 'Restore those of the files',
+  'bookmarks.loading': 'Reading bookmarks …',
+  'bookmarks.add': 'New',
+  'bookmarks.newTitle': 'New bookmark',
+  'bookmarks.outdent': 'One level up',
+  'bookmarks.indent': 'One level down',
+  'bookmarks.none': 'No bookmarks. Use “New” to add the first.',
+  'bookmarks.pick': 'Pick a bookmark from the list.',
+  'bookmarks.titleField': 'Title',
+  'bookmarks.target': 'Jumps to',
+  'bookmarks.noTarget': 'No target',
 };

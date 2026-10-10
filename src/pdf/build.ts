@@ -9,6 +9,8 @@ import { wordBaseline, wordSize } from '../core/ocr';
 import { applyPageBox } from './pagebox';
 import { applyEdits } from './edit';
 import { cleanPdf, redactPage } from './protect';
+import { writeOutline } from './outline';
+import type { ResolvedBookmark } from '../core/bookmarks';
 import { compressPictures } from './compress';
 import type { Compression } from '../core/compress';
 import { encryptionOptions, isCleaning, type Cleaning, type Protection } from '../core/protect';
@@ -101,6 +103,8 @@ export interface BuildOptions {
   protect?: Protection | null;
   /** What to take out of the saved file. */
   clean?: Cleaning;
+  /** Bookmarks to write instead of the ones the files have. */
+  outline?: ResolvedBookmark[];
   /** Scale pictures down and store them again with lower quality. */
   compress?: Compression;
 }
@@ -242,6 +246,7 @@ export async function buildPdf(
     // "Flatten form": the fields become part of the page, so they can no longer be changed.
     if (options.flatten) out.bake(false, true);
 
+    if (options.outline) writeOutline(out, options.outline);
     if (options.compress) compressPictures(engine, out, options.compress);
     if (options.clean && isCleaning(options.clean)) cleanPdf(out, options.clean);
     out.setMetaData('info:Producer', 'PDFgoat');

@@ -2,6 +2,7 @@
 // The page list is derived from it, undo removes the last entry, and later milestones add
 // commands for comments, form values and redactions that the engine applies when saving.
 import type { Annot } from './annotations';
+import type { Bookmark } from './bookmarks';
 import type { Edit } from './edits';
 import type { Mark } from './marks';
 import type { OcrWord } from './ocr';
@@ -27,6 +28,8 @@ export type Change =
   | { type: 'crop'; crops: Record<string, Box | null> }
   /** Sets a new size for pages, in points as shown, by page id (null: keep the size). */
   | { type: 'resize'; sizes: Record<string, [number, number] | null> }
+  /** Replaces the bookmarks of the whole document. */
+  | { type: 'outline'; items: Bookmark[] | null }
   /** Sets the words found by text recognition, by page id (null: remove them). */
   | { type: 'ocr'; words: Record<string, OcrWord[] | null> }
   /** Replaces the edits of the existing text and pictures of one page. */
@@ -131,6 +134,10 @@ export function applyChange(pages: PageRef[], change: Change): PageRef[] {
       });
       return changed ? next : pages;
     }
+
+    case 'outline':
+      // Bookmarks belong to the document, not to a page.
+      return pages;
 
     case 'ocr': {
       let changed = false;

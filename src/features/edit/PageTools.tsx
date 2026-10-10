@@ -15,11 +15,12 @@ interface Props {
   /** Two or more documents are open. */
   canCompare: boolean;
   onBatch: () => void;
+  onBookmarks: () => void;
   onCompare: () => void;
 }
 
 /** Tools that change whole pages: an empty page, header and footer, cropping, paper size. */
-export default function PageTools({ disabled, onBlank, onMark, onCrop, onResize, onProtect, protectActive, onExport, onCompress, onOcr, canCompare, onCompare, onBatch }: Props) {
+export default function PageTools({ disabled, onBlank, onMark, onCrop, onResize, onProtect, protectActive, onExport, onCompress, onOcr, canCompare, onCompare, onBatch, onBookmarks }: Props) {
   const { t } = useI18n();
   return (
     <div className="ribbon page-tools" role="toolbar" aria-label={t('pagetools.label')}>
@@ -29,6 +30,10 @@ export default function PageTools({ disabled, onBlank, onMark, onCrop, onResize,
         <span>{t('pagetools.mark')}</span></button>
       <button className="ribbon-button" onClick={onCrop} disabled={disabled}><Icon name="crop" size={22} />
         <span>{t('pagetools.crop')}</span></button>
+      <button className="ribbon-button" onClick={onBookmarks} disabled={disabled}>
+        <Icon name="bookmark" size={22} />
+        <span>{t('pagetools.bookmarks')}</span>
+      </button>
       <button className="ribbon-button" onClick={onBatch}>
         <Icon name="batch" size={22} />
         <span>{t('pagetools.batch')}</span>
