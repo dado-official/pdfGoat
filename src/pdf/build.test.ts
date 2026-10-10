@@ -56,6 +56,16 @@ describe('buildPdf', () => {
     expect(src.b.reads).toBe(1);
   });
 
+  it('refuses a source whose page count no longer matches the opened file', async () => {
+    const replaced = { ...source(await makePdf([{ width: 300 }]), 'neu.pdf'), pageCount: 3 };
+    await expect(buildPdf([ref('a', 0)], { a: replaced })).rejects.toMatchObject({
+      code: 'fileUnreadable',
+      params: { name: 'neu.pdf' },
+    });
+    const same = { ...source(await makePdf([{ width: 300 }])), pageCount: 1 };
+    expect(await describePdf(await buildPdf([ref('a', 0)], { a: same }))).toHaveLength(1);
+  });
+
   it('tries again after a source could not be read', async () => {
     const bytes = await makePdf([{ width: 300 }]);
     let fail = true;

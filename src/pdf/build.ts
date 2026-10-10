@@ -9,6 +9,8 @@ export interface BuildSource {
   name?: string;
   /** Returns the file's bytes. Called once, when the file is first needed for saving. */
   read: () => Promise<Uint8Array>;
+  /** Number of pages seen when the file was opened, to notice a file that changed since. */
+  pageCount?: number;
 }
 
 // pdf-lib and fflate are only needed when saving, so they load on demand.
@@ -35,6 +37,10 @@ async function parse(src: BuildSource): Promise<PDFDocument> {
   // Encrypted files must not be rebuilt: their streams would be copied without decrypting
   // them, which produces broken pages without any error.
   if (doc.isEncrypted) throw new AppError('encrypted', { name: src.name ?? '' });
+  // A file that was replaced on disk after opening must never be exported as if it were the original.
+  if (src.pageCount !== undefined && doc.getPageCount() !== src.pageCount) {
+    throw new AppError('fileUnreadable', { name: src.name ?? '' });
+  }
   return doc;
 }
 

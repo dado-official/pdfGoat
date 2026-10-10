@@ -23,6 +23,7 @@ Kostenloser PDF-Editor als Website, der vollständig im Browser läuft. Dateien 
 2. **Alles selbst gehostet.** Keine CDNs, keine externen Schriften, kein Analytics. Der PDF.js-Worker, dessen Schrift- und Zeichentabellen und später die OCR-Sprachdaten liegen auf der eigenen Domain.
 3. **Original bleibt unangetastet.** Die geöffnete Datei wird im Speicher nie verändert. Bearbeitungen sind eine Liste von Änderungen, aus der erst beim Export ein neues PDF gebaut wird. Das macht Rückgängig/Wiederholen einfach und verhindert Datenverlust.
 4. **Kleine Startseite.** Jede Funktion wird erst bei Bedarf nachgeladen (Code-Splitting), damit die Seite schnell startet.
+5. **Eigenes Gesicht, kein PDF24-Klon.** PDFgoat darf PDF24 nicht zu ähnlich sein: weder im Aussehen (Layout, Farben, Icons, Kachelraster der Werkzeuge) noch in den Formulierungen. Bei jeder Arbeit an Oberfläche, Startseite und Texten wird das geprüft.
 
 ## Architektur
 
@@ -172,7 +173,7 @@ Reihenfolge nach Aufwand:
 
 - **Texte als `de.ts`/`en.ts` statt JSON:** TypeScript prüft so beim Build, dass jeder Schlüssel existiert und beide Sprachen vollständig sind.
 - **CSP in der Seite und in `dist/_headers`, beides aus `vite.config.ts` erzeugt:** Die Policy gilt damit auf jedem Hoster und in den Browser-Tests, und es gibt nur eine Quelle. Eine Datei `public/_headers` gibt es deshalb nicht.
-- **Dateibytes werden nicht im Speicher gehalten:** Gespeichert wird nur der Verweis auf die Datei, gelesen wird beim Öffnen (für PDF.js) und einmal beim ersten Speichern (für pdf-lib).
+- **Dateien unter 100 MB bleiben im Speicher,** damit das Speichern auch dann klappt, wenn die Datei auf der Festplatte inzwischen verschoben, überschrieben oder gelöscht wurde. Nur größere Dateien werden beim Speichern neu gelesen. Passt die Seitenzahl dann nicht mehr zur geöffneten Datei, bricht der Export mit einer Meldung ab.
 - **Verschlüsselte PDFs werden abgelehnt,** auch solche, die sich ohne Passwort öffnen lassen. pdf-lib kann sie nicht entschlüsseln und würde leere Seiten speichern.
 - **Größenlimits:** Warnung ab 100 MB, Ablehnung über 500 MB (`src/core/limits.ts`).
 - **Test-PDFs** werden in `tests/fixtures.ts` im Code erzeugt, die echte verschlüsselte Datei liegt in `tests/files/`.

@@ -1,6 +1,6 @@
 import { expect, test as base, type Download, type Page } from '@playwright/test';
 import { unzipSync } from 'fflate';
-import { readFile } from 'node:fs/promises';
+import { readFile, rm, writeFile } from 'node:fs/promises';
 import { describePdf, makeEncryptedPdf, makePdf } from '../fixtures';
 
 const pdfFile = (name: string, bytes: Uint8Array) => ({ name, mimeType: 'application/pdf', buffer: Buffer.from(bytes) });
@@ -152,6 +152,22 @@ test('no longer counts a file once all of its pages are deleted', async ({ app: 
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'PDF speichern' }).click();
   expect((await download).suggestedFilename()).toBe('a.pdf');
+});
+
+// Sync folders, scanners and cleaned-up download folders change files behind the browser's back.
+test('still saves the opened pages after the file on disk was overwritten and deleted', async ({ app: page }, testInfo) => {
+  const path = testInfo.outputPath('vertrag.pdf');
+  await writeFile(path, await makePdf([{ width: 501 }, { width: 502 }]));
+  await page.getByTestId('file-input').setInputFiles(path);
+  await expect(cards(page)).toHaveCount(2);
+
+  await writeFile(path, await makePdf([{ width: 999 }]));
+  await rm(path);
+  await card(page, 0).getByLabel('Im Uhrzeigersinn drehen').click();
+
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'PDF speichern' }).click();
+  expect(await widthsAndRotations(await downloadBytes(await download))).toEqual(['501@90', '502@0']);
 });
 
 test('splits by page ranges into a ZIP', async ({ app: page }) => {

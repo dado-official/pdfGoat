@@ -21,10 +21,7 @@ export interface SourceDoc extends BuildSource {
   view: PDFDocumentProxy;
 }
 
-/**
- * Reads the file from disk. The bytes are not kept in memory: PDF.js gets its own copy for
- * viewing, and saving reads the file again, so a large PDF is not held several times.
- */
+/** Reads the file from disk. */
 async function readFile(file: File): Promise<Uint8Array> {
   try {
     return new Uint8Array(await file.arrayBuffer());
@@ -53,10 +50,15 @@ export async function openPdf(file: File): Promise<OpenedPdf> {
   }
 
   const data = await readFile(file);
+  // Normal files stay in memory, so saving still works when the file on disk is moved,
+  // overwritten or deleted meanwhile (sync folders, cleaned-up downloads). Only large files
+  // are read again when saving, to avoid holding them several times.
+  const keepBytes = verdict === 'ok';
   let view: PDFDocumentProxy;
   try {
     view = await pdfjs.getDocument({
-      data,
+      // PDF.js takes over the buffer it is given, so it gets a copy when we keep the bytes.
+      data: keepBytes ? data.slice() : data,
       cMapUrl: asset('cmaps'),
       cMapPacked: true,
       standardFontDataUrl: asset('standard_fonts'),
@@ -74,7 +76,13 @@ export async function openPdf(file: File): Promise<OpenedPdf> {
     throw new AppError('encrypted', { name });
   }
 
-  const doc: SourceDoc = { id: uid('d'), name, view, read: () => readFile(file) };
+  const doc: SourceDoc = {
+    id: uid('d'),
+    name,
+    view,
+    pageCount: view.numPages,
+    read: keepBytes ? async () => data : () => readFile(file),
+  };
   const pages = Array.from({ length: view.numPages }, (_, i) => ({
     id: uid('p'),
     docId: doc.id,
