@@ -26,13 +26,13 @@ export default function Toolbar(p: Props) {
   return (
     <div className="toolbar" role="toolbar" aria-label={t('toolbar.label')}>
       <div className="group">
-        <button onClick={p.onAdd}>{t('toolbar.add')}</button>
+        <button onClick={p.onAdd} className="add">{t('toolbar.add')}</button>
         <button onClick={p.onUndo} disabled={!p.canUndo} title={t('toolbar.undo.title')}>{t('toolbar.undo')}</button>
         <button onClick={p.onRedo} disabled={!p.canRedo} title={t('toolbar.redo.title')}>{t('toolbar.redo')}</button>
-        <button onClick={p.onCloseAll}>{t('toolbar.closeAll')}</button>
+        <button onClick={p.onCloseAll} disabled={!p.pageCount}>{t('toolbar.closeAll')}</button>
       </div>
       <div className="group">
-        <button onClick={p.onToggleAll}>{t(allSelected ? 'toolbar.selectNone' : 'toolbar.selectAll')}</button>
+        <button onClick={p.onToggleAll} disabled={!p.pageCount}>{t(allSelected ? 'toolbar.selectNone' : 'toolbar.selectAll')}</button>
         <button onClick={() => p.onRotate(-90)} disabled={none}>{t('toolbar.rotateLeft')}</button>
         <button onClick={() => p.onRotate(90)} disabled={none}>{t('toolbar.rotateRight')}</button>
         <button onClick={p.onDelete} disabled={none} className="danger">{t('toolbar.delete')}</button>

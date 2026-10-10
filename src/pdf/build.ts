@@ -1,5 +1,5 @@
 // Writes new PDFs with pdf-lib. No DOM and no PDF.js here, so it runs in Node tests too.
-import { PDFArray, PDFDict, PDFName, type PDFDocument, type PDFObject } from 'pdf-lib';
+import type { PDFDocument, PDFObject } from 'pdf-lib';
 import { AppError } from '../core/errors';
 import type { PageRef } from '../core/types';
 
@@ -15,6 +15,7 @@ export interface BuildSource {
 
 // pdf-lib and fflate are only needed when saving, so they load on demand.
 const loadPdfLib = () => import('pdf-lib');
+type PdfLib = Awaited<ReturnType<typeof loadPdfLib>>;
 
 // Parsed pdf-lib documents, kept per source so repeated saves do not parse the file again.
 // A WeakMap frees them together with the source when the file is closed.
@@ -49,7 +50,7 @@ async function parse(src: BuildSource): Promise<PDFDocument> {
  * Maps page positions as PDF.js counts them to page indices in pdf-lib. They differ when a
  * damaged file lists a page that does not exist: PDF.js keeps the position, pdf-lib skips it.
  */
-function readablePages(doc: PDFDocument): Map<number, number> {
+function readablePages(doc: PDFDocument, { PDFArray, PDFDict, PDFName }: PdfLib): Map<number, number> {
   const readable = new Map<number, number>();
   let position = 0;
   const walk = (node: PDFObject | undefined) => {
@@ -72,7 +73,8 @@ function readablePages(doc: PDFDocument): Map<number, number> {
 /** Builds a new PDF from a list of pages (possibly from several documents). */
 export async function buildPdf(pages: PageRef[], sources: Record<string, BuildSource>): Promise<Uint8Array> {
   if (!pages.length) throw new AppError('noPages');
-  const { PDFDocument, degrees } = await loadPdfLib();
+  const pdfLib = await loadPdfLib();
+  const { PDFDocument, degrees } = pdfLib;
   const out = await PDFDocument.create();
   out.setProducer('PDFgoat');
   out.setCreator('PDFgoat');
@@ -92,7 +94,7 @@ export async function buildPdf(pages: PageRef[], sources: Record<string, BuildSo
     // A damaged file can list pages that do not exist. Name the page instead of failing obscurely;
     // the user can delete it and save the rest.
     const missing = (p: PageRef) => new AppError('pageMissing', { name: source.name ?? '', number: p.srcIndex + 1 });
-    const available = readablePages(lib);
+    const available = readablePages(lib, pdfLib);
     const lost = list.find((p) => !available.has(p.srcIndex));
     if (lost) throw missing(lost);
     const result = await out.copyPages(lib, list.map((p) => available.get(p.srcIndex)!));

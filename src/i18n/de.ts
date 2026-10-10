@@ -5,7 +5,7 @@ export const de = {
     'Kostenloser PDF-Editor, der komplett im Browser läuft. Seiten sortieren, drehen, löschen, PDFs zusammenfügen und aufteilen, ohne Upload.',
 
   'brand.tagline': 'Eats your PDFs. Never your data.',
-  'privacy.badge': '🔒 Nichts wird hochgeladen',
+  'privacy.badge': 'Nichts wird hochgeladen',
   'privacy.title': 'Alle Dateien werden nur in deinem Browser verarbeitet.',
   'lang.switch': 'Sprache wechseln',
   'lang.other': 'English',
@@ -27,14 +27,6 @@ export const de = {
 
   'drop.title': 'PDF hier ablegen oder klicken zum Öffnen',
   'drop.hint': 'Mehrere Dateien auf einmal werden zusammengefügt. Deine Dateien bleiben auf deinem Gerät.',
-  'feature.sort.title': 'Sortieren',
-  'feature.sort.text': 'per Drag & Drop',
-  'feature.rotate.title': 'Drehen & löschen',
-  'feature.rotate.text': 'einzeln oder gesammelt',
-  'feature.merge.title': 'Zusammenfügen',
-  'feature.merge.text': 'beliebig vieler PDFs',
-  'feature.split.title': 'Aufteilen',
-  'feature.split.text': 'nach Bereichen oder Seiten',
 
   'card.select': 'Seite {number} auswählen',
   'card.deselect': 'Seite {number} abwählen',

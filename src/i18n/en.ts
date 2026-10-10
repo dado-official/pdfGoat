@@ -6,7 +6,7 @@ export const en: Record<MessageKey, string> = {
     'Free PDF editor that runs entirely in your browser. Reorder, rotate and delete pages, merge and split PDFs, without any upload.',
 
   'brand.tagline': 'Eats your PDFs. Never your data.',
-  'privacy.badge': '🔒 Nothing is uploaded',
+  'privacy.badge': 'Nothing is uploaded',
   'privacy.title': 'All files are processed in your browser only.',
   'lang.switch': 'Switch language',
   'lang.other': 'Deutsch',
@@ -28,14 +28,6 @@ export const en: Record<MessageKey, string> = {
 
   'drop.title': 'Drop a PDF here or click to open',
   'drop.hint': 'Several files at once are merged. Your files stay on your device.',
-  'feature.sort.title': 'Reorder',
-  'feature.sort.text': 'with drag & drop',
-  'feature.rotate.title': 'Rotate & delete',
-  'feature.rotate.text': 'one page or many',
-  'feature.merge.title': 'Merge',
-  'feature.merge.text': 'any number of PDFs',
-  'feature.split.title': 'Split',
-  'feature.split.text': 'by ranges or page count',
 
   'card.select': 'Select page {number}',
   'card.deselect': 'Deselect page {number}',

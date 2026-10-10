@@ -25,6 +25,15 @@ Kostenloser PDF-Editor als Website, der vollständig im Browser läuft. Dateien 
 4. **Kleine Startseite.** Jede Funktion wird erst bei Bedarf nachgeladen (Code-Splitting), damit die Seite schnell startet.
 5. **Eigenes Gesicht, kein PDF24-Klon.** PDFgoat darf PDF24 nicht zu ähnlich sein: weder im Aussehen (Layout, Farben, Icons, Kachelraster der Werkzeuge) noch in den Formulierungen. Bei jeder Arbeit an Oberfläche, Startseite und Texten wird das geprüft.
 
+## Design: „Werkbank“
+
+Gewählt am 10.10.2026, um sich klar von PDF24 abzusetzen.
+
+- **Aufbau:** Die Seite ist sofort Arbeitsfläche, keine Landingpage. Links eine Werkzeugleiste, rechts liegen die Seiten auf der „Werkbank“. Auf schmalen Bildschirmen rückt die Leiste nach oben.
+- **Farben:** Graphit `#1c2126` (Fläche), `#252b31` (Leiste), Kreide `#e9e6de` (Text), Staub `#9ba3a9` (Nebentext) und genau eine Signalfarbe, Gelbgrün `#d2e84a`, für Auswahl und die Hauptaktion.
+- **Schrift:** Archivo (OFL, selbst gehostet). Schmal und fett für Überschriften, Zahlen und Werkzeuge, normal breit für Lesetext.
+- **Zeichen:** zwei Hörner als Strichzeichen statt eines Maskottchens. Kanten eckig, keine Kacheln, keine gestrichelte Ablagebox. Die leere Fläche trägt Schnittmarken wie ein Druckbogen.
+
 ## Architektur
 
 Vier Schichten, Abhängigkeiten zeigen nur nach unten:

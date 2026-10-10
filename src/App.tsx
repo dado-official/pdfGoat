@@ -6,6 +6,7 @@ import { buildPdf, zip } from './pdf/build';
 import { closePdf, openPdf, type OpenedPdf, type SourceDoc } from './pdf/lazy';
 import { useI18n } from './i18n/context';
 import { download } from './ui/download';
+import GoatMark from './ui/GoatMark';
 import { useFileDrop, useShortcuts } from './ui/useWindowEvents';
 import DropZone from './features/open/DropZone';
 import PageGrid from './features/organize/PageGrid';
@@ -156,31 +157,16 @@ export default function App() {
         }}
       />
 
-      <header className="top">
-        <div className="brand">
-          <span className="logo" aria-hidden="true">🐐</span>
-          <div>
-            <h1>PDFgoat</h1>
-            <p>{t('brand.tagline')}</p>
+      <div className="shell">
+        <aside className="rail">
+          <div className="brand">
+            <GoatMark />
+            <div>
+              <h1>PDFgoat</h1>
+              <p>{t('brand.tagline')}</p>
+            </div>
           </div>
-        </div>
-        <div className="top-end">
-          <span className="privacy" title={t('privacy.title')}>
-            {t('privacy.badge')}
-          </span>
-          <button
-            className="lang"
-            title={t('lang.switch')}
-            lang={lang === 'de' ? 'en' : 'de'}
-            onClick={() => setLang(lang === 'de' ? 'en' : 'de')}
-          >
-            {t('lang.other')}
-          </button>
-        </div>
-      </header>
 
-      {pages.length > 0 && (
-        <>
           <Toolbar
             pageCount={pages.length}
             docCount={docCount}
@@ -199,43 +185,66 @@ export default function App() {
             onSplit={() => setSplitOpen(true)}
             onSave={save}
           />
-          <p className="status" aria-live="polite">
-            {tn('status.pages', pages.length)}
-            {docCount > 1 && t('status.fromFiles', { count: docCount })}
-            {selected.size > 0 && t('status.selected', { count: selected.size })}
-            <span className="tip">{t('status.tip')}</span>
-          </p>
-        </>
-      )}
 
-      {error && (
-        <div className="error" role="alert">
-          {error}
-          <button onClick={() => setError('')} aria-label={t('alert.close')}>✕</button>
-        </div>
-      )}
-      {notice && (
-        <div className="notice" role="status">
-          {notice}
-          <button onClick={() => setNotice('')} aria-label={t('alert.close')}>✕</button>
-        </div>
-      )}
+          <div className="rail-foot">
+            <p className="privacy" title={t('privacy.title')}>{t('privacy.badge')}</p>
+            <button
+              className="lang"
+              title={t('lang.switch')}
+              lang={lang === 'de' ? 'en' : 'de'}
+              onClick={() => setLang(lang === 'de' ? 'en' : 'de')}
+            >
+              {t('lang.other')}
+            </button>
+          </div>
+        </aside>
 
-      <main>
-        {pages.length > 0 ? (
-          <PageGrid
-            state={state}
-            docs={docs}
-            thumbs={thumbs}
-            failedThumbs={failedThumbs}
-            onNeedThumb={requestThumb}
-            dispatch={dispatch}
-            onPreview={setPreviewId}
-          />
-        ) : (
-          <DropZone onOpen={openFilePicker} />
-        )}
-      </main>
+        <div className="work">
+          {pages.length > 0 && (
+            <p className="status" aria-live="polite">
+              {tn('status.pages', pages.length)}
+              {docCount > 1 && t('status.fromFiles', { count: docCount })}
+              {selected.size > 0 && t('status.selected', { count: selected.size })}
+              <span className="tip">{t('status.tip')}</span>
+            </p>
+          )}
+
+          {error && (
+            <div className="error" role="alert">
+              {error}
+              <button onClick={() => setError('')} aria-label={t('alert.close')}>✕</button>
+            </div>
+          )}
+          {notice && (
+            <div className="notice" role="status">
+              {notice}
+              <button onClick={() => setNotice('')} aria-label={t('alert.close')}>✕</button>
+            </div>
+          )}
+
+          <main>
+            {pages.length > 0 ? (
+              <PageGrid
+                state={state}
+                docs={docs}
+                thumbs={thumbs}
+                failedThumbs={failedThumbs}
+                onNeedThumb={requestThumb}
+                dispatch={dispatch}
+                onPreview={setPreviewId}
+              />
+            ) : (
+              <DropZone onOpen={openFilePicker} />
+            )}
+          </main>
+
+          <footer>
+            {t('footer.intro')}{' '}
+            <a href="https://mozilla.github.io/pdf.js/" target="_blank" rel="noopener noreferrer">PDF.js</a> (Apache 2.0) {t('footer.and')}{' '}
+            <a href="https://pdf-lib.js.org/" target="_blank" rel="noopener noreferrer">pdf-lib</a> (MIT).
+          </footer>
+        </div>
+      </div>
 
       {fileDragging && <div className="file-overlay" aria-hidden="true">{t('drop.overlay')}</div>}
       {busy && <div className="busy" role="status">{busy}</div>}
@@ -262,12 +271,6 @@ export default function App() {
           onClose={() => setSplitOpen(false)}
         />
       )}
-
-      <footer>
-        {t('footer.intro')}{' '}
-        <a href="https://mozilla.github.io/pdf.js/" target="_blank" rel="noopener noreferrer">PDF.js</a> (Apache 2.0) {t('footer.and')}{' '}
-        <a href="https://pdf-lib.js.org/" target="_blank" rel="noopener noreferrer">pdf-lib</a> (MIT).
-      </footer>
     </>
   );
 }
