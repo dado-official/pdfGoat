@@ -294,3 +294,31 @@ export async function passwordInfo(bytes: Uint8Array, password = ''): Promise<{ 
     doc.destroy();
   }
 }
+
+/** A page with one large, noisy picture (1500 x 1000 pixels), as a scan or a photo would be. */
+export async function makePhotoPdf(): Promise<Uint8Array> {
+  const w = 1500;
+  const h = 1000;
+  // Smooth colours with a little noise: compresses well as JPEG and badly as lossless data.
+  let seed = 12345;
+  const rand = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff) * 24;
+  const row = (y: number) => Buffer.concat([Buffer.from([0]), Buffer.from(Array.from({ length: w }, (_, x) => [(x / w) * 200 + rand(), (y / h) * 200 + rand(), 120 + rand()]).flat().map((v) => Math.min(255, Math.max(0, Math.round(v)))))]);
+  const raw = Buffer.concat(Array.from({ length: h }, (_, y) => row(y)));
+  const chunk = (type: string, data: Buffer) => {
+    const body = Buffer.concat([Buffer.from(type, 'ascii'), data]);
+    const out = Buffer.alloc(body.length + 8);
+    out.writeUInt32BE(data.length, 0);
+    body.copy(out, 4);
+    out.writeUInt32BE(crc32(body), body.length + 4);
+    return out;
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(w, 0);
+  header.writeUInt32BE(h, 4);
+  header.set([8, 2, 0, 0, 0], 8);
+  const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', header), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+  const doc = await PDFDocument.create();
+  const page = doc.addPage([595, 842]);
+  page.drawImage(await doc.embedPng(png), { x: 50, y: 400, width: 450, height: 300 });
+  return doc.save();
+}

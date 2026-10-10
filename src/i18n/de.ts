@@ -447,6 +447,24 @@ export const de = {
   'export.textHint': 'Der Text stammt aus den Seiten, wie sie in der Datei stehen. Eigene Änderungen am Text sind darin nicht enthalten. Gescannte Seiten haben ohne Texterkennung keinen Text.',
   'export.noText': 'Auf diesen Seiten gibt es keinen Text, der sich exportieren lässt.',
   'busy.exporting': 'Wird exportiert …',
+
+  // Compress
+  'pagetools.compress': 'Komprimieren',
+  'cmd.compress': 'Datei komprimieren',
+  'cmd.compress.kw': 'verkleinern groesse bilder reduzieren',
+  'compress.title': 'Datei komprimieren',
+  'compress.apply': 'Komprimieren',
+  'compress.working': 'Wird komprimiert …',
+  'compress.save': 'Speichern',
+  'compress.level': 'Stärke',
+  'compress.level.light': 'Gering: Bilder bis 2400 Pixel, hohe Qualität',
+  'compress.level.medium': 'Mittel: Bilder bis 1600 Pixel',
+  'compress.level.strong': 'Stark: Bilder bis 1000 Pixel, sichtbar weniger Qualität',
+  'compress.hint': 'Bilder werden verkleinert und neu gespeichert, ungenutzte Teile fallen weg. Texte und Schriften bleiben unverändert. Bilder mit Transparenz und Masken werden nicht verändert.',
+  'compress.result': 'Vorher {before}, nachher {after} (−{percent} %).',
+  'compress.nothing': 'Die Datei ist schon klein ({size}), hier gibt es nichts zu gewinnen.',
+  'compress.failed': 'Das Komprimieren ist fehlgeschlagen.',
+  'file.compressed': 'komprimiert',
 } as const;
 
 export type MessageKey = keyof typeof de;

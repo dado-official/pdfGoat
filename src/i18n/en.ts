@@ -444,4 +444,22 @@ export const en: Record<MessageKey, string> = {
   'export.textHint': 'The text comes from the pages as they are in the file. Your own changes to the text are not included. Scanned pages have no text without text recognition.',
   'export.noText': 'There is no text on these pages that could be exported.',
   'busy.exporting': 'Exporting …',
+
+  // Compress
+  'pagetools.compress': 'Compress',
+  'cmd.compress': 'Compress the file',
+  'cmd.compress.kw': 'smaller size pictures reduce shrink',
+  'compress.title': 'Compress the file',
+  'compress.apply': 'Compress',
+  'compress.working': 'Compressing …',
+  'compress.save': 'Save',
+  'compress.level': 'Strength',
+  'compress.level.light': 'Light: pictures up to 2400 pixels, high quality',
+  'compress.level.medium': 'Medium: pictures up to 1600 pixels',
+  'compress.level.strong': 'Strong: pictures up to 1000 pixels, visibly lower quality',
+  'compress.hint': 'Pictures are scaled down and stored again, unused parts are dropped. Text and fonts stay as they are. Pictures with transparency and masks are not changed.',
+  'compress.result': 'Before {before}, after {after} (−{percent} %).',
+  'compress.nothing': 'The file is already small ({size}); there is nothing to gain.',
+  'compress.failed': 'Compressing failed.',
+  'file.compressed': 'compressed',
 };

@@ -1,7 +1,7 @@
 import { expect, test as base, type Download, type Page } from '@playwright/test';
 import { unzipSync } from 'fflate';
 import { readFile, rm, writeFile } from 'node:fs/promises';
-import { annotationsOf, describePdf, makeContentPdf, passwordInfo, fieldCount, formValues, imageCount, textOf, tinyPng, makeCommentedPdf, makeFormPdf, makeHalfBrokenPdf, makePdf, makeProtectedPdf, makeRichPdf } from '../fixtures';
+import { annotationsOf, describePdf, makeContentPdf, makePhotoPdf, passwordInfo, fieldCount, formValues, imageCount, textOf, tinyPng, makeCommentedPdf, makeFormPdf, makeHalfBrokenPdf, makePdf, makeProtectedPdf, makeRichPdf } from '../fixtures';
 
 const pdfFile = (name: string, bytes: Uint8Array) => ({ name, mimeType: 'application/pdf', buffer: Buffer.from(bytes) });
 
@@ -1184,6 +1184,21 @@ test.describe('pictures and export', () => {
     const md = page.waitForEvent('download');
     await page.getByRole('dialog').getByRole('button', { name: 'Exportieren' }).click();
     expect((await md).suggestedFilename()).toBe('inhalt.md');
+  });
+
+  test('compresses a file with a large picture and shows the sizes before and after', async ({ app: page }) => {
+    const photo = await makePhotoPdf();
+    await page.getByTestId('file-input').setInputFiles(pdfFile('foto.pdf', photo));
+    await expect(page.locator('.card img')).toBeVisible();
+    await page.getByRole('button', { name: 'Komprimieren' }).first().click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Komprimieren' }).click();
+    await expect(page.getByRole('status')).toContainText('Vorher');
+    await expect(page.getByRole('status')).toContainText('nachher');
+    const file = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Speichern', exact: true }).click();
+    const saved = await file;
+    expect(saved.suggestedFilename()).toBe('foto-komprimiert.pdf');
+    expect((await downloadBytes(saved)).length).toBeLessThan(photo.length / 3);
   });
 
   test('exports pages as pictures, a single one as PNG and several as a ZIP', async ({ app: page }) => {

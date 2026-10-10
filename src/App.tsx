@@ -21,6 +21,8 @@ import { useFileDrop, useShortcuts } from './ui/useWindowEvents';
 import DropZone from './features/open/DropZone';
 import PasswordDialog from './features/open/PasswordDialog';
 import Reader from './features/read/Reader';
+import CompressDialog from './features/export/CompressDialog';
+import { LEVELS, type CompressLevel } from './core/compress';
 import ExportDialog, { type ExportFormat } from './features/export/ExportDialog';
 import { toMarkdown, toParagraphs, toText } from './core/textExport';
 import { renderFinalPng } from './pdf/render';
@@ -76,6 +78,7 @@ export default function App() {
   const [mergeOpen, setMergeOpen] = useState(false);
   const [protectOpen, setProtectOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [compressOpen, setCompressOpen] = useState(false);
   // Protection and cleaning apply to everything that is saved, in every tab.
   const [protect, setProtect] = useState<Protection | null>(null);
   const [clean, setClean] = useState<Cleaning>(noCleaning);
@@ -417,6 +420,7 @@ export default function App() {
     { id: 'crop', label: t('cmd.crop'), keywords: t('cmd.crop.kw'), enabled: hasPages, run: () => setPageDialog('crop') },
     { id: 'resize', label: t('cmd.resize'), keywords: t('cmd.resize.kw'), enabled: hasPages, run: () => setPageDialog('resize') },
     { id: 'protect', label: t('cmd.protect'), keywords: t('cmd.protect.kw'), enabled: !!tab, run: () => setProtectOpen(true) },
+    { id: 'compress', label: t('cmd.compress'), keywords: t('cmd.compress.kw'), enabled: hasPages, run: () => setCompressOpen(true) },
     { id: 'export', label: t('cmd.export'), keywords: t('cmd.export.kw'), enabled: hasPages, run: () => setExportOpen(true) },
     { id: 'selectAll', label: t('cmd.selectAll'), enabled: hasPages && selected.size < pages.length, run: () => dispatch({ type: 'selectAll' }) },
     { id: 'selectNone', label: t('cmd.selectNone'), enabled: selected.size > 0, run: () => dispatch({ type: 'clearSelection' }) },
@@ -581,6 +585,7 @@ export default function App() {
                 onProtect={() => setProtectOpen(true)}
                 protectActive={protectActive}
                 onExport={() => setExportOpen(true)}
+                onCompress={() => setCompressOpen(true)}
               />
               <PageGrid
                 key={tab.id}
@@ -643,6 +648,19 @@ export default function App() {
         <MergeDialog tabs={ws.tabs} onMerge={mergeTabs} onClose={() => setMergeOpen(false)} />
       )}
 
+      {compressOpen && (
+        <CompressDialog
+          scope={scope}
+          onCompress={async (level: CompressLevel) => {
+            const options = { flatten, date, protect, clean };
+            const before = await buildPdf(target, docs, options);
+            const bytes = await buildPdf(target, docs, { ...options, compress: LEVELS[level] });
+            return { before: before.length, after: bytes.length, bytes };
+          }}
+          onSave={(bytes) => download(bytes, `${base()}-${t('file.compressed')}.pdf`)}
+          onClose={() => setCompressOpen(false)}
+        />
+      )}
       {exportOpen && <ExportDialog scope={scope} onExport={exportPages} onClose={() => setExportOpen(false)} />}
       {protectOpen && (
         <ProtectDialog

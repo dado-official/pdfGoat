@@ -8,6 +8,8 @@ import { embedText, textWidth } from './embed';
 import { applyPageBox } from './pagebox';
 import { applyEdits } from './edit';
 import { cleanPdf, redactPage } from './protect';
+import { compressPictures } from './compress';
+import type { Compression } from '../core/compress';
 import { encryptionOptions, isCleaning, type Cleaning, type Protection } from '../core/protect';
 import { markPosition, markText } from '../core/marks';
 import type { PageRef } from '../core/types';
@@ -98,6 +100,8 @@ export interface BuildOptions {
   protect?: Protection | null;
   /** What to take out of the saved file. */
   clean?: Cleaning;
+  /** Scale pictures down and store them again with lower quality. */
+  compress?: Compression;
 }
 
 /** Builds a new PDF from a list of pages (possibly from several documents). */
@@ -226,6 +230,7 @@ export async function buildPdf(
     // "Flatten form": the fields become part of the page, so they can no longer be changed.
     if (options.flatten) out.bake(false, true);
 
+    if (options.compress) compressPictures(engine, out, options.compress);
     if (options.clean && isCleaning(options.clean)) cleanPdf(out, options.clean);
     out.setMetaData('info:Producer', 'PDFgoat');
     // The result lives in the engine's memory, so it is copied out before that is freed.
