@@ -1529,7 +1529,7 @@ test.describe('legal pages', () => {
     await page.getByRole('link', { name: 'Privacy' }).click();
     await expect(page.getByText('Your PDF files never leave your browser.')).toBeVisible();
     await expect(page.getByRole('alert')).toHaveCount(0);
-    await expect(page.getByRole('link', { name: 'danielnagler1507@gmail.com' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'danielnagler1507@gmail.com' }).first()).toBeVisible();
   });
 
   test('serve the licence texts', async ({ app: page, request, baseURL }) => {
