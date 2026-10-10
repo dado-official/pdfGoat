@@ -15,7 +15,7 @@
     "check": "npm run lint && npm run build && npm test && npm run test:e2e"
   },
   "dependencies": {
-    "@fontsource-variable/archivo": "^5.3.0",
+    "@fontsource-variable/geist": "^5.3.0",
     "fflate": "^0.8.3",
     "mupdf": "^1.28.1",
     "react": "^19.2.8",
