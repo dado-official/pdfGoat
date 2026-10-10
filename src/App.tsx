@@ -1,8 +1,16 @@
-import { useCallback, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { AppError } from './core/errors';
 import { outputBase, partName } from './core/ranges';
 import { toMegabytes } from './core/limits';
-import { editorReducer, initialState, selectedInOrder } from './state/editor';
+import { canUndo, initialState, selectedInOrder, type EditorAction } from './state/editor';
+import {
+  activeTab,
+  clonePages,
+  docsInUse,
+  emptyWorkspace,
+  workspaceReducer,
+  type View,
+} from './state/workspace';
 import { zip } from './pdf/build';
 import { buildPdf, CancelledError, type JobOptions } from './pdf/engine';
 import { closePdf, openPdf, renderPage, type OpenedPdf, type SourceDoc } from './pdf/view';
@@ -20,6 +28,10 @@ import Toolbar from './features/organize/Toolbar';
 import { useThumbnails } from './features/organize/useThumbnails';
 import PrintSheet, { type PrintPage } from './features/print/PrintSheet';
 import SplitDialog, { type SplitPlan } from './features/merge-split/SplitDialog';
+import MergeDialog from './features/merge-split/MergeDialog';
+import CommandPalette from './features/command/CommandPalette';
+import type { Command } from './features/command/commands';
+import TabBar from './features/workspace/TabBar';
 
 const PRINT_DPI = 150;
 
@@ -27,10 +39,15 @@ const isPdf = (f: File) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name
 
 export default function App() {
   const { lang, setLang, t, tn, errorText } = useI18n();
-  const [state, dispatch] = useReducer(editorReducer, initialState);
+  const [ws, dispatchWs] = useReducer(workspaceReducer, emptyWorkspace);
+  const tab = activeTab(ws);
+  const state = tab?.editor ?? initialState;
+  const view: View = tab?.view ?? 'pages';
+  const dispatch = useCallback((action: EditorAction) => dispatchWs({ type: 'editor', action }), []);
+  const nextTab = useRef(1);
   // Opened source files, by id. They stay in memory only; nothing is uploaded.
   const [docs, setDocs] = useState<Record<string, SourceDoc>>({});
-  const { thumbs, failed: failedThumbs, request: requestThumb, clear: clearThumbs } = useThumbnails(docs);
+  const { thumbs, failed: failedThumbs, request: requestThumb, clear: clearThumbs, release: releaseThumbs } = useThumbnails(docs);
 
   const [busy, setBusy] = useState('');
   // Set while a job in the engine can be cancelled, with how far it is (0 to 1).
@@ -39,8 +56,9 @@ export default function App() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [previewId, setPreviewId] = useState<string | null>(null);
-  const [view, setView] = useState<'pages' | 'read'>('pages');
   const [splitOpen, setSplitOpen] = useState(false);
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [passwordAsk, setPasswordAsk] = useState<{ name: string; wrong: boolean; answer: (p: string | null) => void } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -98,21 +116,56 @@ export default function App() {
       setNotice(notices.join(' '));
       if (!opened.length) return;
       setDocs((d) => ({ ...d, ...Object.fromEntries(opened.map((o) => [o.doc.id, o.doc])) }));
-      dispatch({ type: 'add', pages: opened.flatMap((o) => o.pages) });
+      // Every file gets its own tab; the last one opened is shown.
+      for (const o of opened) {
+        dispatchWs({ type: 'open', id: `tab${nextTab.current++}`, title: o.doc.name, pages: o.pages });
+      }
     },
-    [t, errorText, openWithPassword],
+    [t, errorText, openWithPassword, setError, setNotice],
   );
 
+  const hasEdits = (t: NonNullable<typeof tab>) => t.editor.changes.length > t.editor.locked;
+
+  /** Closes files that no tab needs any more. */
+  function dropUnusedDocs(remaining: typeof ws) {
+    const inUse = docsInUse(remaining);
+    const unused = Object.keys(docs).filter((id) => !inUse.has(id));
+    if (!unused.length) return;
+    unused.forEach((id) => void closePdf(docs[id]));
+    setDocs((d) => Object.fromEntries(Object.entries(d).filter(([id]) => inUse.has(id))));
+    releaseThumbs(unused);
+  }
+
+  function closeTab(id: string) {
+    const target = ws.tabs.find((x) => x.id === id);
+    if (!target || (hasEdits(target) && !confirm(t('confirm.closeTab', { title: target.title })))) return;
+    const remaining = workspaceReducer(ws, { type: 'close', id });
+    dispatchWs({ type: 'close', id });
+    dropUnusedDocs(remaining);
+    setPreviewId(null);
+    if (!remaining.tabs.length) {
+      freePrint();
+      setError('');
+      setNotice('');
+    }
+  }
+
   function closeAll() {
-    if (pages.length && !confirm(t('confirm.closeAll'))) return;
+    if (ws.tabs.some(hasEdits) && !confirm(t('confirm.closeAll'))) return;
     freePrint();
-    Object.values(docs).forEach(closePdf);
+    Object.values(docs).forEach((d) => void closePdf(d));
     setDocs({});
     clearThumbs();
-    setView('pages');
-    dispatch({ type: 'reset' });
+    dispatchWs({ type: 'reset' });
     setError('');
     setNotice('');
+  }
+
+  function mergeTabs(ids: string[]) {
+    const id = `tab${nextTab.current++}`;
+    let n = 0;
+    const pages = ids.flatMap((from) => clonePages(ws.tabs.find((x) => x.id === from)?.editor.pages ?? [], () => `${id}-p${n++}`));
+    dispatchWs({ type: 'open', id, title: t('tab.merged'), pages });
   }
 
   async function run(label: string, task: (job: JobOptions) => Promise<void>) {
@@ -233,12 +286,47 @@ export default function App() {
     } else if (e.key === 'Escape') {
       dispatch({ type: 'clearSelection' });
     }
-  }, !previewId && !splitOpen && !passwordAsk);
+  }, !previewId && !splitOpen && !passwordAsk && !paletteOpen && !mergeOpen);
+
+  // Ctrl+K works everywhere, also while typing in a field.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const hasPages = pages.length > 0;
+  const idle = !busy;
+  const commands: Command[] = [
+    { id: 'open', label: t('cmd.open'), keywords: t('cmd.open.kw'), enabled: true, run: openFilePicker },
+    { id: 'save', label: t('cmd.save'), keywords: t('cmd.save.kw'), enabled: hasPages && idle, run: save },
+    { id: 'print', label: t('cmd.print'), keywords: t('cmd.print.kw'), shortcut: 'Strg+P', enabled: hasPages && idle, run: print },
+    { id: 'undo', label: t('cmd.undo'), keywords: t('cmd.undo.kw'), shortcut: 'Strg+Z', enabled: canUndo(state), run: () => dispatch({ type: 'undo' }) },
+    { id: 'redo', label: t('cmd.redo'), keywords: t('cmd.redo.kw'), shortcut: 'Strg+Y', enabled: state.undone.length > 0, run: () => dispatch({ type: 'redo' }) },
+    { id: 'read', label: t('cmd.read'), keywords: t('cmd.read.kw'), enabled: !!tab && view !== 'read', run: () => dispatchWs({ type: 'view', view: 'read' }) },
+    { id: 'pages', label: t('cmd.pages'), keywords: t('cmd.pages.kw'), enabled: !!tab && view !== 'pages', run: () => dispatchWs({ type: 'view', view: 'pages' }) },
+    { id: 'selectAll', label: t('cmd.selectAll'), enabled: hasPages && selected.size < pages.length, run: () => dispatch({ type: 'selectAll' }) },
+    { id: 'selectNone', label: t('cmd.selectNone'), enabled: selected.size > 0, run: () => dispatch({ type: 'clearSelection' }) },
+    { id: 'rotateRight', label: t('cmd.rotateRight'), keywords: t('cmd.rotate.kw'), enabled: selected.size > 0, run: () => dispatch({ type: 'rotate', ids: selectedInOrder(state), delta: 90 }) },
+    { id: 'rotateLeft', label: t('cmd.rotateLeft'), keywords: t('cmd.rotate.kw'), enabled: selected.size > 0, run: () => dispatch({ type: 'rotate', ids: selectedInOrder(state), delta: -90 }) },
+    { id: 'delete', label: t('cmd.delete'), keywords: t('cmd.delete.kw'), enabled: selected.size > 0, run: () => dispatch({ type: 'remove', ids: [...selected] }) },
+    { id: 'reverse', label: t('cmd.reverse'), enabled: pages.length > 1, run: () => dispatch({ type: 'reverse' }) },
+    { id: 'split', label: t('cmd.split'), keywords: t('cmd.split.kw'), enabled: hasPages, run: () => setSplitOpen(true) },
+    { id: 'merge', label: t('cmd.merge'), keywords: t('cmd.merge.kw'), enabled: ws.tabs.length > 1, run: () => setMergeOpen(true) },
+    { id: 'closeTab', label: t('cmd.closeTab'), enabled: !!tab, run: () => tab && closeTab(tab.id) },
+    { id: 'closeAll', label: t('cmd.closeAll'), enabled: ws.tabs.length > 0, run: closeAll },
+    { id: 'language', label: t('cmd.language'), keywords: t('cmd.language.kw'), enabled: true, run: () => setLang(lang === 'de' ? 'en' : 'de') },
+  ];
 
   const previewPage = previewIndex >= 0 ? pages[previewIndex] : null;
   const allSelected = pages.length > 0 && selected.size === pages.length;
 
-  const editing = pages.length > 0;
+  const editing = ws.tabs.length > 0;
   const brand = (
     <div className="brand">
       <GoatMark />
@@ -282,17 +370,26 @@ export default function App() {
           <aside className="rail">
             {brand}
 
+            <button className="commands" onClick={() => setPaletteOpen(true)}>
+              <span>{t('command.open')}</span>
+              <kbd>Strg+K</kbd>
+            </button>
+
             <Toolbar
               pageCount={pages.length}
               docCount={docCount}
               selectedCount={selected.size}
-              canUndo={state.changes.length > 0}
+              canUndo={canUndo(state)}
               canRedo={state.undone.length > 0}
               busy={!!busy}
+              view={view}
+              onView={(v) => dispatchWs({ type: 'view', view: v })}
+              tabCount={ws.tabs.length}
+              onMerge={() => setMergeOpen(true)}
               onAdd={openFilePicker}
               onUndo={() => dispatch({ type: 'undo' })}
               onRedo={() => dispatch({ type: 'redo' })}
-              onCloseAll={closeAll}
+              onCloseTab={() => tab && closeTab(tab.id)}
               onToggleAll={() => dispatch({ type: allSelected ? 'clearSelection' : 'selectAll' })}
               onRotate={(delta) => dispatch({ type: 'rotate', ids: selectedInOrder(state), delta })}
               onDelete={() => dispatch({ type: 'remove', ids: [...selected] })}
@@ -312,17 +409,17 @@ export default function App() {
         )}
 
         <div className="work">
-          {pages.length > 0 && (
-            <div className="views" role="group" aria-label={t('view.label')}>
-              {(['pages', 'read'] as const).map((v) => (
-                <button key={v} aria-pressed={view === v} onClick={() => setView(v)}>
-                  {t(`view.${v}`)}
-                </button>
-              ))}
-            </div>
+          {editing && (
+            <TabBar
+              tabs={ws.tabs}
+              active={ws.active}
+              onActivate={(id) => dispatchWs({ type: 'activate', id })}
+              onClose={closeTab}
+              onOpen={openFilePicker}
+            />
           )}
 
-          {pages.length > 0 && (
+          {tab && (
             <p className="status" aria-live="polite">
               {tn('status.pages', pages.length)}
               {docCount > 1 && t('status.fromFiles', { count: docCount })}
@@ -345,10 +442,22 @@ export default function App() {
           )}
 
           <main>
-            {pages.length > 0 && view === 'read' ? (
-              <Reader pages={pages} docs={docs} thumbs={thumbs} failedThumbs={failedThumbs} onNeedThumb={requestThumb} />
-            ) : pages.length > 0 ? (
+            {tab && !hasPages ? (
+              <p className="empty-tab">{t('tab.empty')}</p>
+            ) : tab && view === 'read' ? (
+              <Reader
+                key={tab.id}
+                pages={pages}
+                docs={docs}
+                thumbs={thumbs}
+                failedThumbs={failedThumbs}
+                onNeedThumb={requestThumb}
+                memory={tab.memory}
+                onMemory={(memory) => dispatchWs({ type: 'memory', id: tab.id, memory })}
+              />
+            ) : tab ? (
               <PageGrid
+                key={tab.id}
                 state={state}
                 docs={docs}
                 thumbs={thumbs}
@@ -398,6 +507,12 @@ export default function App() {
 
       {passwordAsk && (
         <PasswordDialog name={passwordAsk.name} wrong={passwordAsk.wrong} onResult={passwordAsk.answer} />
+      )}
+
+      {paletteOpen && <CommandPalette commands={commands} onClose={() => setPaletteOpen(false)} />}
+
+      {mergeOpen && (
+        <MergeDialog tabs={ws.tabs} onMerge={mergeTabs} onClose={() => setMergeOpen(false)} />
       )}
 
       {splitOpen && (

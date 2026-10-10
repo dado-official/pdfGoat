@@ -18,6 +18,7 @@ export function useThumbnails(docs: Record<string, SourceDoc>, width = 180) {
   const queue = useRef<ThumbPage[]>([]);
   const working = useRef(false);
   const urls = useRef(new Set<string>());
+  const byKey = useRef(new Map<string, string>());
   const docsRef = useRef(docs);
 
   useEffect(() => {
@@ -39,6 +40,7 @@ export function useThumbnails(docs: Record<string, SourceDoc>, width = 180) {
           continue;
         }
         urls.current.add(url);
+        byKey.current.set(key, url);
         setThumbs((t) => ({ ...t, [key]: url }));
       } catch (err) {
         // The card shows a placeholder instead; the page can still be exported.
@@ -65,13 +67,29 @@ export function useThumbnails(docs: Record<string, SourceDoc>, width = 180) {
   const clear = useCallback(() => {
     urls.current.forEach((u) => URL.revokeObjectURL(u));
     urls.current.clear();
+    byKey.current.clear();
     requested.current.clear();
     queue.current = [];
     setThumbs({});
     setFailed(new Set());
   }, []);
 
+  /** Frees the previews of files that were closed. */
+  const release = useCallback((docIds: string[]) => {
+    const gone = (key: string) => docIds.some((id) => key.startsWith(`${id}:`));
+    for (const [key, url] of [...byKey.current]) {
+      if (!gone(key)) continue;
+      URL.revokeObjectURL(url);
+      urls.current.delete(url);
+      byKey.current.delete(key);
+    }
+    for (const key of [...requested.current]) if (gone(key)) requested.current.delete(key);
+    queue.current = queue.current.filter((p) => !gone(thumbKey(p)));
+    setThumbs((t) => Object.fromEntries(Object.entries(t).filter(([key]) => !gone(key))));
+    setFailed((f) => new Set([...f].filter((key) => !gone(key))));
+  }, []);
+
   useEffect(() => clear, [clear]);
 
-  return { thumbs, failed, request, clear };
+  return { thumbs, failed, request, clear, release };
 }

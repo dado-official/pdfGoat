@@ -8,6 +8,8 @@ export { normalizeRotation };
 export interface EditorState {
   /** Everything done to the document, oldest first. */
   changes: Change[];
+  /** How many of the first changes cannot be undone: the pages the document was opened with. */
+  locked: number;
   /** The page list after all changes, in output order. Derived from `changes`. */
   pages: PageRef[];
   selected: ReadonlySet<string>;
@@ -26,7 +28,7 @@ export type EditorAction =
   | { type: 'redo' }
   | { type: 'reset' };
 
-export const initialState: EditorState = { changes: [], pages: [], selected: new Set(), undone: [], anchor: null };
+export const initialState: EditorState = { changes: [], locked: 0, pages: [], selected: new Set(), undone: [], anchor: null };
 
 function keepExisting(selected: ReadonlySet<string>, pages: PageRef[]): ReadonlySet<string> {
   const ids = new Set(pages.map((p) => p.id));
@@ -82,7 +84,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
     case 'undo': {
       const last = state.changes.at(-1);
-      if (!last) return state;
+      if (!last || state.changes.length <= state.locked) return state;
       const changes = state.changes.slice(0, -1);
       const prev = replay(changes);
       return {
@@ -105,6 +107,9 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return initialState;
   }
 }
+
+/** True when there is a change to undo. */
+export const canUndo = (state: EditorState) => state.changes.length > state.locked;
 
 /** Selected ids in page order (Set order is click order). */
 export const selectedInOrder = (state: EditorState) =>

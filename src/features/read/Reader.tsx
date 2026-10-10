@@ -15,6 +15,7 @@ import {
 import { placeOutline, type FileOutline } from '../../core/outline';
 import { boxOnScreen, type Box } from '../../core/textLayer';
 import type { PageRef } from '../../core/types';
+import type { ReaderMemory } from '../../state/workspace';
 import { useI18n } from '../../i18n/context';
 import { getOutline, type SourceDoc } from '../../pdf/view';
 import ReadPage from './ReadPage';
@@ -29,14 +30,17 @@ interface Props {
   thumbs: Record<string, string>;
   failedThumbs: ReadonlySet<string>;
   onNeedThumb: (page: PageRef) => void;
+  /** Where the reader was left last time, and where to report the place when it closes. */
+  memory: ReaderMemory | null;
+  onMemory: (memory: ReaderMemory) => void;
 }
 
 /** Continuous view of all pages with zoom and keyboard paging. */
-export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb }: Props) {
+export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb, memory, onMemory }: Props) {
   const { t } = useI18n();
   const scroller = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState<Size>({ width: 800, height: 600 });
-  const [zoom, setZoom] = useState<Zoom>({ kind: 'width' });
+  const [zoom, setZoom] = useState<Zoom>(memory?.zoom ?? { kind: 'width' });
   const [current, setCurrent] = useState(0);
   const [typed, setTyped] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -102,7 +106,16 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb 
   }, []);
 
   // The page at the top of the screen and how far into it we are, to stay there when sizes change.
-  const anchor = useRef({ index: 0, fraction: 0 });
+  const anchor = useRef({ index: memory?.index ?? 0, fraction: memory?.fraction ?? 0 });
+  // The place is handed back when the reader closes, e.g. on a switch to another tab.
+  const leaving = useRef({ zoom, onMemory });
+  useEffect(() => {
+    leaving.current = { zoom, onMemory };
+  }, [zoom, onMemory]);
+  useEffect(
+    () => () => leaving.current.onMemory({ ...anchor.current, zoom: leaving.current.zoom }),
+    [],
+  );
   const layoutRef = useRef(layout);
   useEffect(() => {
     layoutRef.current = layout;
