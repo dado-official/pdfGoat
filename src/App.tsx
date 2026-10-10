@@ -142,6 +142,30 @@ export default function App() {
   const previewPage = previewIndex >= 0 ? pages[previewIndex] : null;
   const allSelected = pages.length > 0 && selected.size === pages.length;
 
+  const editing = pages.length > 0;
+  const brand = (
+    <div className="brand">
+      <GoatMark />
+      <div>
+        <h1>PDFgoat</h1>
+        <p>{t('brand.tagline')}</p>
+      </div>
+    </div>
+  );
+  const meta = (
+    <>
+      <p className="privacy" title={t('privacy.title')}>{t('privacy.badge')}</p>
+      <button
+        className="lang"
+        title={t('lang.switch')}
+        lang={lang === 'de' ? 'en' : 'de'}
+        onClick={() => setLang(lang === 'de' ? 'en' : 'de')}
+      >
+        {t('lang.other')}
+      </button>
+    </>
+  );
+
   return (
     <>
       <input
@@ -157,47 +181,38 @@ export default function App() {
         }}
       />
 
-      <div className="shell">
-        <aside className="rail">
-          <div className="brand">
-            <GoatMark />
-            <div>
-              <h1>PDFgoat</h1>
-              <p>{t('brand.tagline')}</p>
-            </div>
-          </div>
+      <div className={editing ? 'shell editing' : 'shell'}>
+        {editing ? (
+          <aside className="rail">
+            {brand}
 
-          <Toolbar
-            pageCount={pages.length}
-            docCount={docCount}
-            selectedCount={selected.size}
-            canUndo={state.history.length > 0}
-            canRedo={state.future.length > 0}
-            busy={!!busy}
-            onAdd={openFilePicker}
-            onUndo={() => dispatch({ type: 'undo' })}
-            onRedo={() => dispatch({ type: 'redo' })}
-            onCloseAll={closeAll}
-            onToggleAll={() => dispatch({ type: allSelected ? 'clearSelection' : 'selectAll' })}
-            onRotate={(delta) => dispatch({ type: 'rotate', ids: selectedInOrder(state), delta })}
-            onDelete={() => dispatch({ type: 'remove', ids: [...selected] })}
-            onReverse={() => dispatch({ type: 'reverse' })}
-            onSplit={() => setSplitOpen(true)}
-            onSave={save}
-          />
+            <Toolbar
+              pageCount={pages.length}
+              docCount={docCount}
+              selectedCount={selected.size}
+              canUndo={state.history.length > 0}
+              canRedo={state.future.length > 0}
+              busy={!!busy}
+              onAdd={openFilePicker}
+              onUndo={() => dispatch({ type: 'undo' })}
+              onRedo={() => dispatch({ type: 'redo' })}
+              onCloseAll={closeAll}
+              onToggleAll={() => dispatch({ type: allSelected ? 'clearSelection' : 'selectAll' })}
+              onRotate={(delta) => dispatch({ type: 'rotate', ids: selectedInOrder(state), delta })}
+              onDelete={() => dispatch({ type: 'remove', ids: [...selected] })}
+              onReverse={() => dispatch({ type: 'reverse' })}
+              onSplit={() => setSplitOpen(true)}
+              onSave={save}
+            />
 
-          <div className="rail-foot">
-            <p className="privacy" title={t('privacy.title')}>{t('privacy.badge')}</p>
-            <button
-              className="lang"
-              title={t('lang.switch')}
-              lang={lang === 'de' ? 'en' : 'de'}
-              onClick={() => setLang(lang === 'de' ? 'en' : 'de')}
-            >
-              {t('lang.other')}
-            </button>
-          </div>
-        </aside>
+            <div className="rail-foot">{meta}</div>
+          </aside>
+        ) : (
+          <header className="top">
+            {brand}
+            <div className="top-end">{meta}</div>
+          </header>
+        )}
 
         <div className="work">
           {pages.length > 0 && (

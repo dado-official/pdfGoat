@@ -26,8 +26,15 @@ export const en: Record<MessageKey, string> = {
   'footer.intro': 'PDFgoat is free and runs entirely in your browser. Built with',
   'footer.and': 'and',
 
-  'drop.title': 'Drop a PDF here or click to open',
-  'drop.hint': 'Several files at once are merged. Your files stay on your device.',
+  'hero.title': 'Edit PDFs without uploading.',
+  'hero.text':
+    'Reorder, rotate and delete pages, merge and split PDFs. Everything happens in your browser, your files stay on your device.',
+  'hero.button': 'Choose PDF',
+  'hero.dropHint': 'or simply drop files here',
+  'hero.feature.organize': 'Reorder, rotate and delete pages',
+  'hero.feature.merge': 'Merge several PDFs into one file',
+  'hero.feature.split': 'Split a PDF into several files',
+  'hero.feature.private': 'Free, no account and no upload',
 
   'card.select': 'Select page {number}',
   'card.deselect': 'Deselect page {number}',

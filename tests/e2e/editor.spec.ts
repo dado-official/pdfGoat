@@ -69,7 +69,9 @@ const test = base.extend<{ app: Page }>({
 test('shows the empty state with the privacy promise', async ({ app: page }) => {
   await expect(page.getByRole('heading', { name: 'PDFgoat' })).toBeVisible();
   await expect(page.getByText('Nichts wird hochgeladen')).toBeVisible();
-  await expect(page.getByRole('button', { name: /PDF hier ablegen/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'PDFs bearbeiten, ohne Upload.' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'PDF auswählen' })).toBeVisible();
+  await expect(page.getByRole('toolbar')).toHaveCount(0); // the tools appear once a file is open
   await expect(page.locator('html')).toHaveAttribute('lang', 'de');
 });
 
@@ -306,7 +308,7 @@ test.describe('languages', () => {
     await expect(page).toHaveTitle(/edit PDFs without uploading/);
 
     await page.reload();
-    await expect(page.getByRole('button', { name: /Drop a PDF here/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Choose PDF' })).toBeVisible();
 
     await openFixtures(page);
     await expect(page.getByText('5 pages from 2 files')).toBeVisible();
@@ -339,7 +341,7 @@ test.describe('languages', () => {
     test.use({ locale: 'fr-FR' });
 
     test('falls back to English', async ({ app: page }) => {
-      await expect(page.getByRole('button', { name: /Drop a PDF here/ })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Choose PDF' })).toBeVisible();
     });
   });
 });

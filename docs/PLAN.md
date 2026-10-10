@@ -25,14 +25,15 @@ Kostenloser PDF-Editor als Website, der vollständig im Browser läuft. Dateien 
 4. **Kleine Startseite.** Jede Funktion wird erst bei Bedarf nachgeladen (Code-Splitting), damit die Seite schnell startet.
 5. **Eigenes Gesicht, kein PDF24-Klon.** PDFgoat darf PDF24 nicht zu ähnlich sein: weder im Aussehen (Layout, Farben, Icons, Kachelraster der Werkzeuge) noch in den Formulierungen. Bei jeder Arbeit an Oberfläche, Startseite und Texten wird das geprüft.
 
-## Design: „Werkbank“
+## Design
 
-Gewählt am 10.10.2026, um sich klar von PDF24 abzusetzen.
+Festgelegt am 10.10.2026. Zwei Vorgaben von Daniel: nicht nach PDF24 aussehen, aber auf den ersten Blick als PDF-Editor-Website erkennbar sein.
 
-- **Aufbau:** Die Seite ist sofort Arbeitsfläche, keine Landingpage. Links eine Werkzeugleiste, rechts liegen die Seiten auf der „Werkbank“. Auf schmalen Bildschirmen rückt die Leiste nach oben.
-- **Farben:** Graphit `#1c2126` (Fläche), `#252b31` (Leiste), Kreide `#e9e6de` (Text), Staub `#9ba3a9` (Nebentext) und genau eine Signalfarbe, Gelbgrün `#d2e84a`, für Auswahl und die Hauptaktion.
+- **Startseite:** große Überschrift „PDFs bearbeiten, ohne Upload.“, ein Button „PDF auswählen“, vier kurze Zeilen dazu, was man tun kann, und eine Zeichnung gestapelter PDF-Seiten.
+- **Arbeitsansicht:** Sobald eine Datei offen ist, steht links eine Werkzeugleiste und rechts liegen die Seiten auf einer hellgrauen Fläche. Auf schmalen Bildschirmen rückt die Leiste nach oben.
+- **Farben:** Papierweiß `#f7f8f8`, Tinte `#1c2126`, Grau `#5d666d` für Nebentext und genau eine Signalfarbe, Gelbgrün `#d2e84a`, für die Hauptaktion und Markierungen. Nur helles Design.
 - **Schrift:** Archivo (OFL, selbst gehostet). Schmal und fett für Überschriften, Zahlen und Werkzeuge, normal breit für Lesetext.
-- **Zeichen:** zwei Hörner als Strichzeichen statt eines Maskottchens. Kanten eckig, keine Kacheln, keine gestrichelte Ablagebox. Die leere Fläche trägt Schnittmarken wie ein Druckbogen.
+- **Abgrenzung zu PDF24:** zwei Hörner als Zeichen statt eines Maskottchens, eckige Kanten mit harten Schatten statt runder Kacheln, kein Werkzeug-Raster, keine gestrichelte Ablagebox.
 
 ## Architektur
 

@@ -25,8 +25,15 @@ export const de = {
   'footer.intro': 'PDFgoat ist kostenlos und läuft komplett in deinem Browser. Verwendet',
   'footer.and': 'und',
 
-  'drop.title': 'PDF hier ablegen oder klicken zum Öffnen',
-  'drop.hint': 'Mehrere Dateien auf einmal werden zusammengefügt. Deine Dateien bleiben auf deinem Gerät.',
+  'hero.title': 'PDFs bearbeiten, ohne Upload.',
+  'hero.text':
+    'Seiten sortieren, drehen und löschen, PDFs zusammenfügen und aufteilen. Alles passiert in deinem Browser, deine Dateien bleiben auf deinem Gerät.',
+  'hero.button': 'PDF auswählen',
+  'hero.dropHint': 'oder Dateien einfach hierher ziehen',
+  'hero.feature.organize': 'Seiten sortieren, drehen und löschen',
+  'hero.feature.merge': 'Mehrere PDFs zu einer Datei zusammenfügen',
+  'hero.feature.split': 'Ein PDF in mehrere Dateien aufteilen',
+  'hero.feature.private': 'Kostenlos, ohne Konto und ohne Upload',
 
   'card.select': 'Seite {number} auswählen',
   'card.deselect': 'Seite {number} abwählen',
