@@ -67,4 +67,25 @@ test.describe('changing existing content', () => {
     await expect(page.locator('.edit-picture')).toBeVisible();
     expect(await imageCount(await download(page))).toBe(1);
   });
+
+  test('pulls a changed picture bigger by a corner and keeps its shape', async ({ app: page }) => {
+    await openContent(page);
+    await tool(page, 'Bild ändern').click();
+    await page.getByRole('button', { name: '#1' }).click();
+    const picture = page.locator('.edit-picture');
+    const before = (await picture.boundingBox())!;
+    await expect(page.locator('[data-handle="se"]')).toBeVisible();
+    const corner = (await page.locator('[data-handle="se"]').first().boundingBox())!;
+    const [x, y] = [corner.x + corner.width / 2, corner.y + corner.height / 2];
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + 40, y + 120, { steps: 5 });
+    await page.mouse.up();
+    const after = (await picture.boundingBox())!;
+    expect(after.width).toBeGreaterThan(before.width);
+    expect(after.width / after.height).toBeCloseTo(before.width / before.height, 2);
+    expect(after.x).toBeCloseTo(before.x, 0); // the opposite corner stays
+    await page.keyboard.press('Control+z');
+    expect((await picture.boundingBox())!.width).toBeCloseTo(before.width, 0);
+  });
 });

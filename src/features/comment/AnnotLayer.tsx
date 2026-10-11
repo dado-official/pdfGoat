@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   arrowHead,
   boundsOf,
@@ -10,11 +10,13 @@ import {
   type Pt,
 } from '../../core/annotations';
 import type { Size } from '../../core/readerLayout';
-import { overlayTransform } from '../../core/textLayer';
+import { overlayTransform, type Box } from '../../core/textLayer';
 import { makeStamp, type StampName } from './stamps';
 import { FIELD_SIZES, newField, type FieldType } from '../../core/formfields';
 import { makeCheck } from './pictures';
 import { usePngUrl } from '../../ui/usePngUrl';
+import { clampShift, dragHandle, gripOf } from '../../core/resize';
+import ResizeHandles from './ResizeHandles';
 import { isDrawTool, type Picture, type Tool } from './tools';
 
 interface Props {
@@ -42,7 +44,11 @@ const newId = () => crypto.randomUUID();
 /** Comments of one page, drawn over it, and the pointer handling that creates and moves them. */
 export default function AnnotLayer({ size, rotation, scale, annots, tool, color, stamp, dateText, picture, fieldDefaults, selectedId, onSelect, onChange, onPlaced }: Props) {
   const [draft, setDraft] = useState<{ start: Pt; points: Pt[] } | null>(null);
-  const [moving, setMoving] = useState<{ id: string; from: Pt; dx: number; dy: number } | null>(null);
+  const [moving, setMoving] = useState<{ id: string; from: Pt; dx: number; dy: number; box: Box } | null>(null);
+  // The comment as it looks while one of its handles is being pulled.
+  const [resizing, setResizing] = useState<Annot | null>(null);
+  // The last state of the pull, for the release: the render may not have caught up with the last move yet.
+  const pulled = useRef<Annot | null>(null);
   const drawing = isDrawTool(tool);
 
   const at = (e: React.PointerEvent, el: Element): Pt => {
@@ -140,7 +146,12 @@ export default function AnnotLayer({ size, rotation, scale, annots, tool, color,
     onPlaced();
   }
 
-  const shown = useMemo(() => annots.map((a) => (moving && moving.id === a.id ? moveAnnot(a, moving.dx, moving.dy) : a)), [annots, moving]);
+  const shown = useMemo(
+    () => annots.map((a) => (resizing?.id === a.id ? resizing : moving?.id === a.id ? moveAnnot(a, moving.dx, moving.dy) : a)),
+    [annots, moving, resizing],
+  );
+  const picked = shown.find((a) => a.id === selectedId);
+  const grip = picked && !drawing ? gripOf(picked) : null;
 
   return (
     <>
@@ -159,12 +170,13 @@ export default function AnnotLayer({ size, rotation, scale, annots, tool, color,
                 const surface = e.currentTarget.ownerSVGElement!.parentElement!;
                 const from = at(e, surface);
                 e.currentTarget.setPointerCapture(e.pointerId);
-                setMoving({ id: a.id, from, dx: 0, dy: 0 });
+                setMoving({ id: a.id, from, dx: 0, dy: 0, box: a.box });
               }}
               onMove={(e) => {
                 if (!moving || moving.id !== a.id) return;
                 const p = at(e, e.currentTarget.ownerSVGElement!.parentElement!);
-                setMoving({ ...moving, dx: p[0] - moving.from[0], dy: p[1] - moving.from[1] });
+                const [dx, dy] = clampShift(moving.box, p[0] - moving.from[0], p[1] - moving.from[1], size);
+                setMoving({ ...moving, dx, dy });
               }}
               onUp={() => {
                 if (moving && moving.id === a.id && (moving.dx || moving.dy)) {
@@ -188,12 +200,13 @@ export default function AnnotLayer({ size, rotation, scale, annots, tool, color,
               onSelect(a.id);
               const surface = e.currentTarget.parentElement!;
               e.currentTarget.setPointerCapture(e.pointerId);
-              setMoving({ id: a.id, from: at(e, surface), dx: 0, dy: 0 });
+              setMoving({ id: a.id, from: at(e, surface), dx: 0, dy: 0, box: a.box });
             }}
             onPointerMove={(e) => {
               if (!moving || moving.id !== a.id) return;
               const p = at(e, e.currentTarget.parentElement!);
-              setMoving({ ...moving, dx: p[0] - moving.from[0], dy: p[1] - moving.from[1] });
+              const [dx, dy] = clampShift(moving.box, p[0] - moving.from[0], p[1] - moving.from[1], size);
+              setMoving({ ...moving, dx, dy });
             }}
             onPointerUp={() => {
               if (moving && moving.id === a.id && (moving.dx || moving.dy)) {
@@ -205,6 +218,31 @@ export default function AnnotLayer({ size, rotation, scale, annots, tool, color,
             {a.contents}
           </div>
         ))}
+        {/* Above the text boxes, so they do not cover the half of a handle that lies inside them. */}
+        {picked && grip && (
+          <svg width={size.width} height={size.height} viewBox={`0 0 ${size.width} ${size.height}`} aria-hidden="true">
+            <ResizeHandles
+              grip={grip}
+              box={picked.box}
+              line={picked.line}
+              size={size}
+              rotation={rotation}
+              scale={scale}
+              onDrag={(handle, point, shift) => {
+                const original = annots.find((x) => x.id === picked.id);
+                if (!original) return;
+                pulled.current = dragHandle(original, handle, point, { shift, size });
+                setResizing(pulled.current);
+              }}
+              onEnd={(done) => {
+                const result = pulled.current;
+                if (done && result) onChange(annots.map((x) => (x.id === result.id ? result : x)));
+                pulled.current = null;
+                setResizing(null);
+              }}
+            />
+          </svg>
+        )}
       </div>
       {drawing && (
         <div

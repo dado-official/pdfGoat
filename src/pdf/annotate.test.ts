@@ -3,6 +3,7 @@ import { makePdf } from '../../tests/fixtures';
 import type { Annot, AnnotKind } from '../core/annotations';
 import type { PageRef } from '../core/types';
 import { buildPdf } from './build';
+import { resizeAnnot } from '../core/resize';
 import { listComments } from './annotate';
 
 const PIXEL = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='), (c) => c.charCodeAt(0));
@@ -68,6 +69,18 @@ describe('comments when saving', () => {
     const near = (got: number[], want: number[]) => got.forEach((v, i) => expect(Math.abs(v - want[i])).toBeLessThan(2));
     near(plain[0][0].rect, [100, 100, 200, 160]);
     near(turned[0][0].rect, [842 - 160, 100, 842 - 100, 200]);
+  });
+
+  it('saves a resized freehand drawing and a resized line at their new size', async () => {
+    const src = { a: source(await makePdf([{ width: 595, height: 842 }])) };
+    const ink = annot('ink', { box: [98.5, 98.5, 201.5, 151.5], strokes: [[[100, 100], [200, 150]]], width: 2 });
+    const line = annot('line', { box: [98, 198, 202, 252], line: [[100, 200], [200, 250]], width: 2 });
+    const [inkRect, lineRect] = (await commentsOf(await buildPdf([page('a', 0, { annots: [resizeAnnot(ink, [100, 100, 300, 200]), resizeAnnot(line, [100, 200, 300, 300])] })], src)))[0].map((c) => c.rect);
+    // The file keeps the points, not the box: they have to move along or the saved file stays small.
+    expect(inkRect[2] - inkRect[0]).toBeGreaterThan(190);
+    expect(inkRect[3] - inkRect[1]).toBeGreaterThan(90);
+    expect(lineRect[2] - lineRect[0]).toBeGreaterThan(190);
+    expect(lineRect[3] - lineRect[1]).toBeGreaterThan(90);
   });
 
   it('deletes comments that were already in the file, by position', async () => {

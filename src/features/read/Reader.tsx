@@ -15,6 +15,7 @@ import {
 import { placeOutline, type FileOutline } from '../../core/outline';
 import { boxOnScreen, type Box } from '../../core/textLayer';
 import { moveBox, type Edit } from '../../core/edits';
+import { clampShift } from '../../core/resize';
 import { toPlaced, type Bookmark } from '../../core/bookmarks';
 import { boxBetween, isMarkup, mergeLineBoxes, moveAnnot, screenToPage, unionOf, COMMENT_COLORS, DEFAULT_COLOR, type Annot } from '../../core/annotations';
 import type { PageRef } from '../../core/types';
@@ -338,10 +339,16 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
     const to = screenToPage(vx * step, vy * step, baseSizes[index], page.rotation, 1);
     const [dx, dy] = [to[0] - from[0], to[1] - from[1]];
     const annot = page.annots?.find((a) => a.id === selectedId);
-    // Markings follow the text they are on; they are not moved.
-    if (annot && !isMarkup(annot.kind)) annotate(page, page.annots!.map((a) => (a === annot ? moveAnnot(a, dx, dy) : a)));
+    // Markings follow the text they are on; they are not moved. Nothing is moved off the page.
+    if (annot && !isMarkup(annot.kind)) {
+      const [mx, my] = clampShift(annot.box, dx, dy, baseSizes[index]);
+      if (mx || my) annotate(page, page.annots!.map((a) => (a === annot ? moveAnnot(a, mx, my) : a)));
+    }
     const edit = page.edits?.find((x) => x.id === selectedId);
-    if (edit?.kind === 'image' && edit.target) editPage(page, page.edits!.map((x) => (x === edit && x.kind === 'image' ? { ...x, target: moveBox(edit.target!, dx, dy) } : x)));
+    if (edit?.kind === 'image' && edit.target) {
+      const [mx, my] = clampShift(edit.target, dx, dy, baseSizes[index]);
+      if (mx || my) editPage(page, page.edits!.map((x) => (x === edit && x.kind === 'image' ? { ...x, target: moveBox(edit.target!, mx, my) } : x)));
+    }
   }
 
   /** Turns the selected text into a highlight, underline or strikeout, on every page it touches. */

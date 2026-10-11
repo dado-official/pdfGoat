@@ -384,6 +384,12 @@ Ohne Befund: CSP, lokale Texterkennung, Links aus PDFs, Unterschrift nur auf Wun
 
 Nicht geprüft: die uncommitteten Design-Änderungen im Detail, die einzelnen Dialoge Zeile für Zeile, Firefox und WebKit.
 
+## Ziehpunkte (11.10.2026)
+
+Umgesetzt: Ziehpunkte an Ecken und Kanten (`src/features/comment/ResizeHandles.tsx`, Rechnen in `src/core/resize.ts`) für Formen, Textfelder, Stempel, Unterschriften, eingefügte und geänderte Bilder, Formularfelder, Links und Schwärzungen; Linien und Pfeile haben Endpunkt-Griffe, Freihand wird mit skaliert. Bilder, Stempel, Unterschriften, Kästchen und Optionsfelder behalten das Seitenverhältnis (Umschalt gibt es frei, bei den übrigen hält Umschalt es). Mindestgröße 8 pt; Größe und Verschieben (auch mit Pfeiltasten) bleiben auf der Seite. Markierungen und Notizen haben keine Griffe. Bei Textfeldern bleibt die Schrift gleich groß, der Text bricht neu um. Nicht geprüft: Touch auf einem echten Gerät, Firefox und WebKit (laufen in der CI).
+
+Bekannt und offen: Freihand verschiebt beim Ziehen die feste Kante auf dem Bildschirm um bis zu 1,4 pt (die gespeicherten Punkte stimmen); die Verschiebe-Logik steht dreifach in `AnnotLayer.tsx` und `EditLayer.tsx` und ließe sich zu einem gemeinsamen Zustand zusammenführen; Größenänderung per Tastatur gibt es nicht; Text direkt in der Box tippen statt im Seitenpanel ist nicht umgesetzt.
+
 ## Offene Punkte
 
 - Domain prüfen und sichern.

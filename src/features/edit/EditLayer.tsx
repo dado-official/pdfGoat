@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { usePngUrl } from '../../ui/usePngUrl';
 import { screenToPage, type Pt } from '../../core/annotations';
 import { lineBox, moveBox, type Edit } from '../../core/edits';
+import { clampShift, dragBox } from '../../core/resize';
+import ResizeHandles from '../comment/ResizeHandles';
 import type { Size } from '../../core/readerLayout';
 import { overlayTransform, type Box } from '../../core/textLayer';
 import type { TextLine } from '../../pdf/view';
@@ -29,13 +31,21 @@ const boxStyle = (b: Box, pad = 0) => ({ left: b[0] - pad, top: b[1] - pad, widt
 
 /** Changes to existing text and pictures, drawn over the page, and the picking of what to change. */
 export default function EditLayer({ size, rotation, scale, edits, tool, lines, images, selectedId, onSelect, onChange, onPickLine, onPickImage }: Props) {
-  const [moving, setMoving] = useState<{ id: string; from: Pt; dx: number; dy: number } | null>(null);
+  const [moving, setMoving] = useState<{ id: string; from: Pt; dx: number; dy: number; box: Box } | null>(null);
+  // The new place of a picture while one of its handles is being pulled.
+  const [resizing, setResizing] = useState<{ id: string; target: Box } | null>(null);
+  const pulled = useRef<{ id: string; target: Box } | null>(null);
   const at = (e: React.PointerEvent, el: Element): Pt => {
     const r = el.getBoundingClientRect();
     return screenToPage(e.clientX - r.left, e.clientY - r.top, size, rotation, scale);
   };
   if (!edits.length && !tool) return null;
   const level = { width: size.width, height: size.height, transform: overlayTransform(size, rotation, scale) };
+  /** Where a picture is now, with the move or resize that is going on. */
+  const placeOf = (e: Extract<Edit, { kind: 'image' }>) =>
+    resizing?.id === e.id ? resizing.target : moving?.id === e.id && e.target ? moveBox(e.target, moving.dx, moving.dy) : e.target;
+  const picked = edits.find((e): e is Extract<Edit, { kind: 'image' }> => e.id === selectedId && e.kind === 'image' && !!e.target);
+  const pickedBox = picked && placeOf(picked);
 
   return (
     <div className="annot-layer edit-layer" style={level}>
@@ -65,7 +75,7 @@ export default function EditLayer({ size, rotation, scale, edits, tool, lines, i
             </div>
           );
         }
-        const live = moving?.id === e.id && e.target ? moveBox(e.target, moving.dx, moving.dy) : e.target;
+        const live = placeOf(e);
         return (
           <div key={e.id}>
             <div className="edit-cover" style={boxStyle(e.box, 0.5)} />
@@ -78,12 +88,13 @@ export default function EditLayer({ size, rotation, scale, edits, tool, lines, i
                   ev.stopPropagation();
                   onSelect(e.id);
                   ev.currentTarget.setPointerCapture(ev.pointerId);
-                  setMoving({ id: e.id, from: at(ev, ev.currentTarget.parentElement!), dx: 0, dy: 0 });
+                  setMoving({ id: e.id, from: at(ev, ev.currentTarget.parentElement!), dx: 0, dy: 0, box: e.target! });
                 }}
                 onPointerMove={(ev) => {
                   if (!moving || moving.id !== e.id) return;
                   const p = at(ev, ev.currentTarget.parentElement!);
-                  setMoving({ ...moving, dx: p[0] - moving.from[0], dy: p[1] - moving.from[1] });
+                  const [dx, dy] = clampShift(moving.box, p[0] - moving.from[0], p[1] - moving.from[1], size);
+                  setMoving({ ...moving, dx, dy });
                 }}
                 onPointerUp={() => {
                   if (moving && moving.id === e.id && (moving.dx || moving.dy) && e.target) {
@@ -97,6 +108,28 @@ export default function EditLayer({ size, rotation, scale, edits, tool, lines, i
           </div>
         );
       })}
+      {picked && pickedBox && (
+        <svg width={size.width} height={size.height} viewBox={`0 0 ${size.width} ${size.height}`} aria-hidden="true">
+          <ResizeHandles
+            grip="box"
+            box={pickedBox}
+            size={size}
+            rotation={rotation}
+            scale={scale}
+            onDrag={(handle, point, shift) => {
+              if (handle === 'start' || handle === 'end') return;
+              pulled.current = { id: picked.id, target: dragBox(picked.target!, handle, point, { keepRatio: !shift, size }) };
+              setResizing(pulled.current);
+            }}
+            onEnd={(done) => {
+              const result = pulled.current;
+              if (done && result) onChange(edits.map((x) => (x.id === result.id && x.kind === 'image' ? { ...x, target: result.target } : x)));
+              pulled.current = null;
+              setResizing(null);
+            }}
+          />
+        </svg>
+      )}
       {tool === 'editText' &&
         lines
           .filter((l) => Math.abs(l.dy) < 0.01 && l.dx > 0)
