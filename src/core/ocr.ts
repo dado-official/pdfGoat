@@ -1,6 +1,6 @@
 // Text found by text recognition: the words of a page with their boxes in page points. They are
 // written into the saved file as invisible text, so the page can be searched and copied from.
-import type { TextLine } from '../pdf/view';
+import type { TextLine } from './textLayer';
 import type { Box } from './textLayer';
 
 export interface OcrWord {

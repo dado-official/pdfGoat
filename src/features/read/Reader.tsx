@@ -363,6 +363,7 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
         color: '#14161a',
         contents: '',
         box: [b[0] - 1, b[1] - 1, b[2] + 1, b[3] + 1],
+        search: true,
         created: Date.now(),
       }));
       annotate(page, [...(page.annots ?? []), ...made]);

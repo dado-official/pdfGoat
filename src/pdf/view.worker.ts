@@ -4,7 +4,8 @@ import type { PDFDocument } from 'mupdf';
 import { loadMupdf } from './mupdf';
 import { AppError, type ErrorCode, type ErrorParams } from '../core/errors';
 import type { Annot } from '../core/annotations';
-import { colorHex, type FontStyle } from '../core/edits';
+import { colorHex } from '../core/edits';
+import type { TextLine } from '../core/textLayer';
 import { addComment, listComments } from './annotate';
 import { pictureAsPng, pictureBoxes } from './images';
 import { inspectPdf, type Inspection } from './protect';
@@ -50,27 +51,10 @@ export interface PageLink {
   uri?: string;
 }
 
-/** One line of text on a page, in page points (y points down, as drawn). */
-export interface TextLine {
-  text: string;
-  /** Start of the baseline. */
-  x: number;
-  y: number;
-  /** Direction the text runs in, a unit vector. */
-  dx: number;
-  dy: number;
-  /** Font size in points. */
-  size: number;
-  /** How far the line runs along its direction. */
-  length: number;
-  /** Colour of the first character, #rrggbb. */
-  color: string;
-  /** What the font of the first character looks like. */
-  font: FontStyle;
-}
 
 /** A box on the page: left, top, right, bottom in points. */
 export type Box = [number, number, number, number];
+export type { TextLine };
 
 export type ViewResponse =
   | { id: number; ok: true; result: unknown }

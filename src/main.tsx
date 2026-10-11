@@ -4,6 +4,9 @@ import '@fontsource-variable/geist/wght.css'
 import './index.css'
 import App from './App.tsx'
 import I18nProvider from './i18n/I18nProvider.tsx'
+import { applyStoredTheme } from './ui/theme.ts'
+
+applyStoredTheme()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

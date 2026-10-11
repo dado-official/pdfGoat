@@ -1,6 +1,7 @@
 // Geometry of the invisible text layer and of search highlights, in page points.
 // The layer is built in the page's own space and then scaled and turned as a whole by CSS,
 // so zooming and rotating never has to place the text again.
+import type { FontStyle } from './edits';
 import type { Size } from './readerLayout';
 
 export interface LineShape {
@@ -14,6 +15,25 @@ export interface LineShape {
 }
 
 export type Box = [number, number, number, number];
+
+/** One line of text on a page, in page points (y points down, as drawn). */
+export interface TextLine {
+  text: string;
+  /** Start of the baseline. */
+  x: number;
+  y: number;
+  /** Direction the text runs in, a unit vector. */
+  dx: number;
+  dy: number;
+  /** Font size in points. */
+  size: number;
+  /** How far the line runs along its direction. */
+  length: number;
+  /** Colour of the first character, #rrggbb. */
+  color: string;
+  /** What the font of the first character looks like. */
+  font: FontStyle;
+}
 
 /** Where the baseline sits inside a line box of height 1 em (typical for sans-serif fonts). */
 export const BASELINE = 0.85;

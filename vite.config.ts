@@ -61,8 +61,9 @@ export default defineConfig({
   plugins: [
     react(),
     contentSecurityPolicy(),
-    // Makes the site an app that works offline. The app's own files and the PDF engine are cached
-    // when the site is first opened; the text recognition files (/ocr) only after first use.
+    // Makes the site an app that works offline. The app's own files are cached when the site is
+    // first opened; the PDF engine (.wasm, 10 MB) and the text recognition files (/ocr) only after
+    // first use, so a visit to the start page alone does not download them for the cache.
     // A new version waits until the user agrees to load it: a reload would lose unsaved changes.
     VitePWA({
       registerType: 'prompt',
@@ -90,11 +91,16 @@ export default defineConfig({
       } as never,
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,wasm,png,webmanifest,txt}'],
-        globIgnores: ['ocr/**', '_headers'],
+        globIgnores: ['ocr/**', '_headers', '**/*.wasm'],
         maximumFileSizeToCacheInBytes: 40 * 1024 * 1024,
         navigateFallback: 'index.html',
         cleanupOutdatedCaches: true,
         runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.pathname.endsWith('.wasm'),
+            handler: 'CacheFirst',
+            options: { cacheName: 'pdfgoat-engine', cacheableResponse: { statuses: [200] } },
+          },
           {
             urlPattern: ({ url }) => url.pathname.includes('/ocr/'),
             handler: 'CacheFirst',
@@ -106,7 +112,7 @@ export default defineConfig({
   ],
   // Relative paths so the build works on any static host, also in a subfolder.
   base: './',
-  // PDF.js alone is ~500 kB; that is expected for this app.
+  // The PDF engine alone is several MB; that is expected for this app.
   build: { chunkSizeWarningLimit: 1500 },
   // MuPDF uses top-level await, which needs module workers.
   worker: { format: 'es' },

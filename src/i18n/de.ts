@@ -9,6 +9,8 @@ export const de = {
   'privacy.title': 'Alle Dateien werden nur in deinem Browser verarbeitet.',
   'lang.switch': 'Sprache wechseln',
   'lang.other': 'English',
+  'theme.light': 'Heller Modus',
+  'theme.dark': 'Dunkler Modus',
 
   'busy.opening': 'Öffne {name} …',
   'busy.saving': 'Erstelle PDF …',

@@ -53,6 +53,8 @@ export interface Annot {
   tag?: 'signature' | 'initials' | 'check' | 'date';
   /** Stamp: the picture as PNG bytes. */
   image?: Uint8Array;
+  /** Redaction from a search hit: its box is as tall as the font allows, so the text pass trims it. */
+  search?: boolean;
   created: number;
 }
 

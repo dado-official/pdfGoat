@@ -10,6 +10,8 @@ export const en: Record<MessageKey, string> = {
   'privacy.title': 'All files are processed in your browser only.',
   'lang.switch': 'Switch language',
   'lang.other': 'Deutsch',
+  'theme.light': 'Light mode',
+  'theme.dark': 'Dark mode',
 
   'busy.opening': 'Opening {name} …',
   'busy.saving': 'Creating PDF …',

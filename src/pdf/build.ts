@@ -227,8 +227,8 @@ export async function buildPdf(
 
     // Real redaction comes after everything else is on the page, so inserted text under an area goes too.
     pages.forEach((p, i) => {
-      const boxes = p.annots?.filter((a) => a.kind === 'redact').map((a) => a.box);
-      if (boxes?.length) redactPage(engine, out.loadPage(i), boxes);
+      const areas = p.annots?.filter((a) => a.kind === 'redact');
+      if (areas?.length) redactPage(engine, out.loadPage(i), areas);
     });
 
     // Cropping and resizing, then the texts that belong at fixed places of the finished page.

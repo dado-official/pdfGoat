@@ -1,13 +1,13 @@
 // Draws the app icons (PNG) from the logo with MuPDF. Run by hand when the logo changes; the
-// results are kept in public/icons. The logo is 32 x 32 units: a dark tile with two white horns.
+// results are kept in public/icons. The logo is 32 x 32 units: a yellow tile with two dark horns.
 import { writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as mupdf from 'mupdf';
 
 const out = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'icons');
-const INK = [20 / 255, 22 / 255, 26 / 255];
-const WHITE = [1, 1, 1];
+const INK = [1, 198 / 255, 26 / 255]; // the tile
+const WHITE = [20 / 255, 22 / 255, 26 / 255]; // the horns
 
 function tile(radius) {
   const path = new mupdf.Path();

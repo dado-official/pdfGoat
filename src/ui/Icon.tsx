@@ -56,6 +56,8 @@ const PATHS = {
   blank: 'M6 3h8l4 4v14H6zM14 3v4h4',
   mark: 'M4 6h16M4 18h16M8 12h8',
   crop: 'M7 3v14h14M3 7h14v14',
+  sun: 'M12 8a4 4 0 100 8 4 4 0 000-8zM12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4',
+  moon: 'M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z',
   resize: 'M4 9V4h5M20 15v5h-5M4 4l6 6M20 20l-6-6',
 } as const;
 

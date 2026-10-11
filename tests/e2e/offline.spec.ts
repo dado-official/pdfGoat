@@ -14,7 +14,7 @@ test('can be installed: the manifest names the app, the icons and the PDF file t
   for (const icon of manifest.icons) expect((await request.get(new URL(icon.src, new URL(href!, baseURL!)).href)).ok()).toBe(true);
 });
 
-test('keeps working without a network once it has been opened', async ({ page, context }) => {
+test('keeps working without a network once a file has been opened', async ({ page, context }) => {
   test.setTimeout(120_000);
   await page.goto('/');
   // Wait until the app's files are in the cache.
@@ -22,11 +22,15 @@ test('keeps working without a network once it has been opened', async ({ page, c
   await expect
     .poll(async () => page.evaluate(async () => (await Promise.all((await caches.keys()).map(async (k) => (await (await caches.open(k)).keys()).length))).reduce((a, b) => a + b, 0)), { timeout: 60_000 })
     .toBeGreaterThan(20);
+  // The PDF engine is cached when the first file is opened.
+  const file = { name: 'offline.pdf', mimeType: 'application/pdf', buffer: Buffer.from(await makePdf([{ width: 300 }, { width: 301 }])) };
+  await page.getByTestId('file-input').setInputFiles(file);
+  await expect(page.locator('.card img')).toHaveCount(2);
+  await expect.poll(async () => page.evaluate(async () => (await caches.keys()).includes('pdfgoat-engine') && (await (await caches.open('pdfgoat-engine')).keys()).length), { timeout: 30_000 }).toBeGreaterThan(0);
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByRole('heading', { name: 'PDFgoat' })).toBeVisible();
-  // Even the PDF engine works from the cache.
-  await page.getByTestId('file-input').setInputFiles({ name: 'offline.pdf', mimeType: 'application/pdf', buffer: Buffer.from(await makePdf([{ width: 300 }, { width: 301 }])) });
+  await page.getByTestId('file-input').setInputFiles(file);
   await expect(page.locator('.card img')).toHaveCount(2);
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'PDF speichern' }).click();

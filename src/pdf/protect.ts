@@ -1,6 +1,7 @@
 // Protecting and cleaning: real redaction, checking what a file carries along, and taking it out.
 // No DOM here, so it runs in the workers and in Node tests.
 import type { PDFAnnotation, PDFDocument, PDFPage } from 'mupdf';
+import type { Annot } from '../core/annotations';
 import type { Cleaning } from '../core/protect';
 import type { Box } from '../core/textLayer';
 import { listComments } from './annotate';
@@ -15,11 +16,12 @@ const intersects = (a: readonly number[], b: readonly number[]) => a[0] < b[2] &
  * fields that touch a box are deleted too.
  *
  * The boxes of text found by a search are as tall as the font allows, which reaches into the lines
- * above and below. Text is therefore only removed where it meets the box without its top and
- * bottom edge; pictures and lines are cut at the full box.
+ * above and below. For those, text is only removed where it meets the box without its top and
+ * bottom edge; areas drawn by hand and pictures and lines are cut at the full box.
  */
-export function redactPage(engine: Mupdf, page: PDFPage, boxes: Box[]) {
-  if (!boxes.length) return;
+export function redactPage(engine: Mupdf, page: PDFPage, areas: Pick<Annot, 'box' | 'search'>[]) {
+  if (!areas.length) return;
+  const boxes = areas.map((a) => a.box);
   const doc = page._doc;
   const touching = (a: PDFAnnotation) => {
     try {
@@ -40,8 +42,8 @@ export function redactPage(engine: Mupdf, page: PDFPage, boxes: Box[]) {
     page.applyRedactions(false, images, lines, text);
   };
   apply(
-    boxes.map(([x0, y0, x1, y1]) => {
-      const inset = Math.min(4, (y1 - y0) * 0.25);
+    areas.map(({ box: [x0, y0, x1, y1], search }) => {
+      const inset = search ? Math.min(4, (y1 - y0) * 0.25) : 0;
       return [x0, y0 + inset, x1, y1 - inset] as Box;
     }),
     0, // pictures: left for the next step

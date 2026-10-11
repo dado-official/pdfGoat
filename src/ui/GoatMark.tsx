@@ -1,4 +1,4 @@
-/** The PDFgoat mark: two horns on a dark tile. */
+/** The PDFgoat mark: two horns on a yellow tile. */
 export default function GoatMark({ size = 36 }: { size?: number }) {
   return (
     <svg className="mark" width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">

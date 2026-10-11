@@ -66,7 +66,7 @@ describe('redaction', () => {
     const hit = probe.loadPage(0).search('Erste', 'ignore-case')[0][0];
     probe.destroy();
     const box = [Math.min(hit[0], hit[6]) - 1, Math.min(hit[1], hit[3]) - 1, Math.max(hit[0], hit[6], hit[2]) + 1, Math.max(hit[5], hit[7]) + 1] as [number, number, number, number];
-    const out = await buildPdf([page({ annots: [redact(box)] })], { a: { read: async () => bytes } });
+    const out = await buildPdf([page({ annots: [{ ...redact(box), search: true }] })], { a: { read: async () => bytes } });
     const doc = await open(out);
     try {
       const text = doc.loadPage(0).toStructuredText('').asText();
@@ -76,6 +76,17 @@ describe('redaction', () => {
     } finally {
       doc.destroy();
     }
+  });
+
+  it('removes small text at the edge of an area drawn by hand', async () => {
+    const { PDFDocument: Pdf, StandardFonts } = await import('pdf-lib');
+    const src = await Pdf.create();
+    const font = await src.embedFont(StandardFonts.Helvetica);
+    // 3 pt text with its baseline 3.5 pt below the top edge of the area (page space y 100 → 740 in the file).
+    src.addPage([595, 842]).drawText('GEHEIM', { x: 60, y: 842 - 103.5, size: 3, font });
+    const bytes = await src.save();
+    const out = await buildPdf([page({ annots: [redact([50, 100, 400, 300])] })], { a: { read: async () => bytes } });
+    expect(await objectsContaining(out, 'GEHEIM')).toEqual([]);
   });
 
   it('blacks out the part of a picture under the area', async () => {

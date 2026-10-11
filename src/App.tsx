@@ -1,7 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import { AppError } from './core/errors';
-import { outputBase, partName } from './core/ranges';
-import { toMegabytes } from './core/limits';
+import { useCallback, useEffect, useReducer, useState } from 'react';
 import { bookmarksOf, canUndo, initialState, selectedInOrder, type EditorAction } from './state/editor';
 import {
   activeTab,
@@ -11,42 +8,33 @@ import {
   workspaceReducer,
   type View,
 } from './state/workspace';
-import { zip } from './pdf/build';
-import { buildPdf, CancelledError, type JobOptions } from './pdf/engine';
-import { closePdf, getOutline, openPdf, type OpenedPdf, type SourceDoc } from './pdf/view';
+import { buildPdf } from './pdf/engine';
+import { closePdf, getOutline, openPdf, renderPageBytes, type SourceDoc } from './pdf/view';
 import { useI18n } from './i18n/context';
+import Icon from './ui/Icon';
+import { useTheme } from './ui/theme';
 import { download } from './ui/download';
 import GoatMark from './ui/GoatMark';
-import { useFileDrop, useShortcuts } from './ui/useWindowEvents';
+import { useShortcuts } from './ui/useWindowEvents';
 import DropZone from './features/open/DropZone';
 import PasswordDialog from './features/open/PasswordDialog';
 import Reader from './features/read/Reader';
 import LegalPage, { LegalLinks } from './legal/LegalPage';
 import { useLegalRoute } from './legal/useRoute';
 import { registerOffline } from './pwa';
-import { allowWriting, canPickWithHandles, pickPdfs, receiveLaunchedFiles, writeInto, type OpenedFile } from './features/open/fileAccess';
 import PageDialog from './features/edit/PageDialog';
 import BookmarksDialog from './features/bookmarks/BookmarksDialog';
-import { fromPlaced, mergeBookmarks, remapBookmarks, resolveBookmarks, type Bookmark } from './core/bookmarks';
+import { fromPlaced, mergeBookmarks, remapBookmarks, type Bookmark } from './core/bookmarks';
 import { placeOutline } from './core/outline';
 import BatchDialog from './features/batch/BatchDialog';
 import OcrDialog from './features/ocr/OcrDialog';
 import { ocrWidth, recognizePages, type OcrLang } from './pdf/ocr';
-import { ocrLines } from './core/ocr';
-import { renderPageBytes } from './pdf/view';
 import CompareDialog from './features/compare/CompareDialog';
 import CompressDialog from './features/export/CompressDialog';
 import { LEVELS, type CompressLevel } from './core/compress';
-import ExportDialog, { type ExportFormat } from './features/export/ExportDialog';
-import { toMarkdown, toParagraphs, toText, withoutCovered } from './core/textExport';
-import { buildDocx } from './core/docx';
-import { renderFinalPng } from './pdf/render';
-import { getText } from './pdf/view';
+import ExportDialog from './features/export/ExportDialog';
 import ProtectDialog from './features/protect/ProtectDialog';
 import { isCleaning, isProtected, noCleaning, type Cleaning, type Protection } from './core/protect';
-import { finalSize } from './core/pages';
-import { renderFinal } from './pdf/render';
-import { imageToPdfFile, isImage } from './features/open/imageFile';
 import PageTools from './features/edit/PageTools';
 import MarkDialog from './features/edit/MarkDialog';
 import CropDialog from './features/edit/CropDialog';
@@ -58,57 +46,48 @@ import PageGrid from './features/organize/PageGrid';
 import Preview from './features/organize/Preview';
 import Toolbar from './features/organize/Toolbar';
 import { useThumbnails } from './features/organize/useThumbnails';
-import PrintSheet, { type PrintPage } from './features/print/PrintSheet';
-import SplitDialog, { type SplitPlan } from './features/merge-split/SplitDialog';
+import PrintSheet from './features/print/PrintSheet';
+import SplitDialog from './features/merge-split/SplitDialog';
 import MergeDialog from './features/merge-split/MergeDialog';
 import CommandPalette from './features/command/CommandPalette';
 import type { Command } from './features/command/commands';
 import TabBar from './features/workspace/TabBar';
+import { useJob } from './app/useJob';
+import { useOpenFiles } from './app/useOpenFiles';
+import { usePrint } from './app/usePrint';
+import { useSave } from './app/useSave';
 
-const PRINT_DPI = 150;
-
-const isOpenable = (f: File) => isPdf(f) || isImage(f);
-const isPdf = (f: File) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
+type Dialog = 'split' | 'merge' | 'protect' | 'export' | 'compress' | 'compare' | 'ocr' | 'batch' | 'bookmarks' | 'overwrite' | 'mark' | 'crop' | 'resize' | null;
 
 export default function App() {
   const { lang, setLang, t, tn, errorText } = useI18n();
+  const [theme, toggleTheme] = useTheme();
   const [ws, dispatchWs] = useReducer(workspaceReducer, emptyWorkspace);
   const tab = activeTab(ws);
   const state = tab?.editor ?? initialState;
   const view: View = tab?.view ?? 'pages';
   const dispatch = useCallback((action: EditorAction) => dispatchWs({ type: 'editor', action }), []);
-  const nextTab = useRef(1);
   // Opened source files, by id. They stay in memory only; nothing is uploaded.
   const [docs, setDocs] = useState<Record<string, SourceDoc>>({});
   const { thumbs, failed: failedThumbs, request: requestThumb, clear: clearThumbs, release: releaseThumbs } = useThumbnails(docs);
 
-  const [busy, setBusy] = useState('');
-  // Set while a job in the engine can be cancelled, with how far it is (0 to 1).
-  const [progress, setProgress] = useState<number | null>(null);
-  const job = useRef<AbortController | null>(null);
-  const [error, setError] = useState('');
+  const { busy, setBusy, progress, error, setError, run, cancel } = useJob(errorText);
   const [notice, setNotice] = useState('');
   // Set when a new version of the app is ready to be loaded.
   const [updateApply, setUpdateApply] = useState<(() => Promise<void>) | null>(null);
   const [previewId, setPreviewId] = useState<string | null>(null);
-  const [splitOpen, setSplitOpen] = useState(false);
-  const [mergeOpen, setMergeOpen] = useState(false);
-  const [protectOpen, setProtectOpen] = useState(false);
-  const [exportOpen, setExportOpen] = useState(false);
-  const [compressOpen, setCompressOpen] = useState(false);
-  const [compareOpen, setCompareOpen] = useState(false);
-  const [ocrOpen, setOcrOpen] = useState(false);
-  const [batchOpen, setBatchOpen] = useState(false);
-  const [bookmarksOpen, setBookmarksOpen] = useState(false);
   // Protection and cleaning apply to everything that is saved, in every tab.
   const [protect, setProtect] = useState<Protection | null>(null);
   const [clean, setClean] = useState<Cleaning>(noCleaning);
   const protectActive = isProtected(protect) || isCleaning(clean);
-  const [pageDialog, setPageDialog] = useState<'mark' | 'crop' | 'resize' | null>(null);
+  // Today's date for header and footer texts that contain {date}.
+  const [today] = useState(() => new Date());
+  const date = today.toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-GB');
+  // "Flatten form" applies to everything that is saved, in every tab.
+  const [flatten, setFlatten] = useState(false);
+  // The dialog that is open, if any; only one at a time.
+  const [dialog, setDialog] = useState<Dialog>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [passwordAsk, setPasswordAsk] = useState<{ name: string; wrong: boolean; answer: (p: string | null) => void } | null>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
-
   const { pages, selected } = state;
   // Counted from the pages, so a file whose pages were all removed or undone no longer counts.
   const ownPages = pages.filter((p) => !docs[p.docId]?.generated);
@@ -122,6 +101,13 @@ export default function App() {
     const s = docs[p.docId]?.sizes[p.srcIndex];
     return s ? { width: s[0], height: s[1] } : null;
   };
+
+  const { addFiles, openFilePicker, fileInput, passwordAsk, fileDragging, newTabId } = useOpenFiles({ dispatchWs, setDocs, setBusy, setError, setNotice });
+  const bookmarks = bookmarksOf(state);
+  const { printPages, print, freePrint } = usePrint({ run, pages, docs, date, setNotice });
+  const { save, overwrite, overwriteTarget, split, exportPages, optionsFor, base } = useSave({
+    run, setError, setNotice, pages, selected, target, docs, sizeOf, bookmarks, flatten, date, protect, clean,
+  });
 
   /** Inserts an empty page after the last selected page, or at the end, in the shape of its neighbour. */
   async function insertBlank() {
@@ -143,75 +129,6 @@ export default function App() {
   }
 
   const previewIndex = pages.findIndex((p) => p.id === previewId);
-  const openFilePicker = async () => {
-    // Where the browser allows it, files are picked with handles, so they can be saved in place.
-    if (canPickWithHandles()) {
-      const picked = await pickPdfs(t('open.pdfFiles'), t('open.pictures')).catch(() => null);
-      if (picked) void addFiles(picked.map((p) => p.file), new Map(picked.map((p) => [p.file, p.handle])));
-      return;
-    }
-    fileInput.current?.click();
-  };
-
-  /** Opens a file; protected files ask for their password until it fits or the user skips them. */
-  const openWithPassword = useCallback(async (file: File): Promise<OpenedPdf | null> => {
-    let password: string | undefined;
-    for (;;) {
-      try {
-        return await openPdf(file, password);
-      } catch (err) {
-        if (!(err instanceof AppError) || (err.code !== 'passwordRequired' && err.code !== 'passwordWrong')) throw err;
-        const wrong = err.code === 'passwordWrong';
-        const answer = await new Promise<string | null>((resolve) =>
-          setPasswordAsk({ name: file.name, wrong, answer: resolve }),
-        );
-        setPasswordAsk(null);
-        if (answer === null) return null;
-        password = answer;
-      }
-    }
-  }, []);
-
-  const addFiles = useCallback(
-    async (list: FileList | File[], handles?: Map<File, OpenedFile['handle']>) => {
-      setError('');
-      setNotice('');
-      const files = [...list].filter(isOpenable);
-      if (!files.length) {
-        setError(t('error.noPdfSelected'));
-        return;
-      }
-      const opened: OpenedPdf[] = [];
-      const errors: string[] = [];
-      const notices: string[] = [];
-      for (const file of files) {
-        setBusy(t('busy.opening', { name: file.name }));
-        try {
-          // A picture becomes a PDF of one page first.
-          const result = await openWithPassword(isImage(file) ? await imageToPdfFile(file) : file);
-          if (!result) continue;
-          // Only a PDF can be written back; a picture that was made into a PDF must never be overwritten by it.
-          if (isPdf(file)) result.doc.handle = handles?.get(file);
-          opened.push(result);
-          if (result.encrypted) notices.push(t('warning.encrypted', { name: file.name }));
-          if (result.large) notices.push(t('warning.large', { name: file.name, size: toMegabytes(file.size) }));
-        } catch (err) {
-          errors.push(errorText(err));
-        }
-      }
-      setBusy('');
-      setError(errors.join(' '));
-      setNotice(notices.join(' '));
-      if (!opened.length) return;
-      setDocs((d) => ({ ...d, ...Object.fromEntries(opened.map((o) => [o.doc.id, o.doc])) }));
-      // Every file gets its own tab; the last one opened is shown.
-      for (const o of opened) {
-        dispatchWs({ type: 'open', id: `tab${nextTab.current++}`, title: o.doc.name, pages: o.pages });
-      }
-    },
-    [t, errorText, openWithPassword, setError, setNotice],
-  );
-
   useEffect(() => {
     const apply = registerOffline(() => setUpdateApply(() => apply));
   }, []);
@@ -254,7 +171,7 @@ export default function App() {
   }
 
   async function mergeTabs(ids: string[]) {
-    const id = `tab${nextTab.current++}`;
+    const id = newTabId();
     let n = 0;
     const sources = ids.flatMap((from) => ws.tabs.filter((x) => x.id === from));
     // The copies of the pages, and which copy stands for which page.
@@ -286,193 +203,6 @@ export default function App() {
     dispatchWs({ type: 'editor', id, action: { type: 'outline', items: mergeBookmarks(merged, newId) } });
   }
 
-  async function run(label: string, task: (job: JobOptions) => Promise<void>) {
-    const controller = new AbortController();
-    job.current = controller;
-    setBusy(label);
-    setProgress(0);
-    setError('');
-    try {
-      await task({ signal: controller.signal, onProgress: setProgress });
-    } catch (err) {
-      // Cancelling is the user's choice, not a failure.
-      if (!(err instanceof CancelledError)) {
-        console.error(err);
-        setError(errorText(err));
-      }
-    } finally {
-      job.current = null;
-      setBusy('');
-      setProgress(null);
-    }
-  }
-
-  /** The bookmarks the user set up, written for the pages of a saved file; none when the files' own stay. */
-  const bookmarks = bookmarksOf(state);
-  const outlineFor = (list: PageRef[]) => (bookmarks ? resolveBookmarks(bookmarks, list) : undefined);
-
-  const base = () => outputBase(ownPages.map((p) => docs[p.docId].name), t('file.merged'));
-
-  /** After saving pages with redactions: say what a redaction does not reach. */
-  const remindOfLeftovers = (list: PageRef[], before = '') => {
-    if (list.some((p) => p.annots?.some((a) => a.kind === 'redact')) && !(clean.metadata && clean.attachments)) setNotice(`${before}${before ? ' ' : ''}${t('redact.leftover')}`);
-    else if (before) setNotice(before);
-  };
-
-  const save = () =>
-    run(t('busy.saving'), async (job) => {
-      download(await buildPdf(pages, docs, { ...job, flatten, date, protect, clean, outline: outlineFor(pages) }), `${base()}.pdf`);
-      remindOfLeftovers(pages);
-    });
-
-  // Today's date for header and footer texts that contain {date}.
-  const [today] = useState(() => new Date());
-  const date = today.toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-GB');
-  // "Flatten form" applies to everything that is saved, in every tab.
-  const [flatten, setFlatten] = useState(false);
-  /** Saves the pages as pictures, or the text of the pages as plain text or Markdown. */
-  const exportPages = (format: ExportFormat, dpi: number) =>
-    run(t('busy.exporting'), async (job) => {
-      const name = base();
-      if (format === 'png') {
-        const files: { name: string; bytes: Uint8Array }[] = [];
-        for (const [i, p] of target.entries()) {
-          if (job.signal?.aborted) throw new CancelledError();
-          const own = sizeOf(p);
-          if (!own) continue;
-          const shown = finalSize(p, own);
-          const number = pages.indexOf(p) + 1;
-          const bytes = await renderFinalPng(p, docs, { width: Math.round((shown.width * dpi) / 72), number, total: pages.length, date });
-          files.push({ name: `${name}-${String(number).padStart(2, '0')}.png`, bytes });
-          job.onProgress?.((i + 1) / target.length);
-        }
-        if (!files.length) return;
-        if (files.length === 1) download(files[0].bytes, files[0].name, 'image/png');
-        else download(await zip(files), `${name}-${t('export.images')}.zip`, 'application/zip');
-        return;
-      }
-      const texts: ReturnType<typeof toParagraphs>[] = [];
-      for (const [i, p] of target.entries()) {
-        if (job.signal?.aborted) throw new CancelledError();
-        const doc = docs[p.docId];
-        const lines = [...(doc?.sizes[p.srcIndex] ? await getText(doc, p.srcIndex) : []), ...ocrLines(p.ocr ?? [])];
-        // Text under a redaction must not come back through an export.
-        const kept = withoutCovered(lines, (p.annots ?? []).filter((a) => a.kind === 'redact').map((a) => a.box));
-        texts.push(toParagraphs(kept.map((l) => ({ text: l.text, x: l.x, y: l.y, size: l.size }))));
-        job.onProgress?.((i + 1) / target.length);
-      }
-      const text = format === 'md' ? toMarkdown(texts) : toText(texts);
-      if (format === 'docx' && texts.some((p) => p.length)) {
-        download(buildDocx(texts), `${name}.docx`, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-        return;
-      }
-      if (!text.trim()) {
-        setNotice(t('export.noText'));
-        return;
-      }
-      download(new TextEncoder().encode(text), `${name}.${format}`, format === 'md' ? 'text/markdown' : 'text/plain');
-    });
-
-  const [printPages, setPrintPages] = useState<PrintPage[] | null>(null);
-
-  // The images are freed when the print dialog closes or when everything is closed.
-  const printed = useRef<PrintPage[]>([]);
-  const freePrint = useCallback(() => {
-    printed.current.forEach((p) => URL.revokeObjectURL(p.url));
-    printed.current = [];
-    setPrintPages(null);
-  }, [setPrintPages]);
-
-  // The browser prints what is on the page, so the pages are drawn as images (150 dpi) first.
-  const print = () =>
-    run(t('busy.printing'), async (job) => {
-      const made: PrintPage[] = [];
-      let skipped = 0;
-      try {
-        for (const [i, p] of pages.entries()) {
-          if (job.signal?.aborted) throw new CancelledError();
-          const size = docs[p.docId].sizes[p.srcIndex];
-          if (!size) {
-            skipped++;
-            continue;
-          }
-          const turned = finalSize(p, { width: size[0], height: size[1] });
-          const url = await renderFinal(p, docs, {
-            width: Math.round((turned.width * PRINT_DPI) / 72),
-            dpr: 1,
-            number: i + 1,
-            total: pages.length,
-            date,
-          });
-          made.push({ url, landscape: turned.width > turned.height });
-          job.onProgress?.((i + 1) / pages.length);
-        }
-      } catch (err) {
-        made.forEach((m) => URL.revokeObjectURL(m.url));
-        throw err;
-      }
-      if (skipped) setNotice(t('warning.printSkipped', { count: skipped }));
-      freePrint();
-      if (made.length) {
-        printed.current = made;
-        setPrintPages(made);
-      }
-    });
-
-  const split = (plan: SplitPlan) =>
-    run(t('busy.splitting'), async (job) => {
-      if (plan === 'selection') {
-        const chosen = pages.filter((p) => selected.has(p.id));
-        download(await buildPdf(chosen, docs, { ...job, flatten, date, protect, clean, outline: outlineFor(chosen) }), `${base()}-${t('file.selection')}.pdf`);
-        return;
-      }
-      const files = [];
-      for (const [i, group] of plan.entries()) {
-        files.push({
-          name: partName(base(), i, group, t('file.pageAbbr')),
-          bytes: await buildPdf(group.map((k) => pages[k]), docs, {
-            signal: job.signal,
-            flatten,
-            date,
-            protect,
-            clean,
-            outline: outlineFor(group.map((k) => pages[k])),
-            onProgress: (f) => job.onProgress?.((i + f) / plan.length),
-          }),
-        });
-      }
-      if (files.length === 1) download(files[0].bytes, files[0].name);
-      else download(await zip(files), `${base()}-${t('file.split')}.zip`, 'application/zip');
-    });
-
-  const fileDragging = useFileDrop(addFiles);
-
-  // Files that the system opens with the installed app ("Open with PDFgoat").
-  useEffect(() => {
-    receiveLaunchedFiles((files) => void addFiles(files.map((f) => f.file), new Map(files.map((f) => [f.file, f.handle]))));
-  }, [addFiles]);
-
-  // The file on disk that the document of this tab came from, when it can be written back.
-  const sourceDoc = new Set(ownPages.map((p) => p.docId)).size === 1 ? docs[ownPages[0].docId] : undefined;
-  const overwriteTarget = sourceDoc?.handle ? sourceDoc : undefined;
-  const [overwriteOpen, setOverwriteOpen] = useState(false);
-
-  /** Writes the document into the file it was opened from. */
-  async function overwrite() {
-    const doc = overwriteTarget;
-    if (!doc?.handle) return;
-    // Permission needs a click that is still fresh, so it is asked for before the work starts.
-    if (!(await allowWriting(doc.handle).catch(() => false))) {
-      setError(t('overwrite.denied'));
-      return;
-    }
-    await run(t('busy.saving'), async (job) => {
-      const bytes = await buildPdf(pages, docs, { ...job, flatten, date, protect, clean, outline: outlineFor(pages) });
-      await writeInto(doc.handle!, bytes);
-      remindOfLeftovers(pages, t('overwrite.done', { name: doc.name }));
-    });
-  }
-
   useShortcuts((e) => {
     const mod = e.ctrlKey || e.metaKey;
     const key = e.key.toLowerCase();
@@ -496,7 +226,7 @@ export default function App() {
     } else if (e.key === 'Escape') {
       dispatch({ type: 'clearSelection' });
     }
-  }, !previewId && !splitOpen && !passwordAsk && !paletteOpen && !mergeOpen);
+  }, !previewId && dialog !== 'split' && dialog !== 'merge' && !passwordAsk && !paletteOpen);
 
   // Ctrl+K works everywhere, also while typing in a field.
   useEffect(() => {
@@ -521,24 +251,24 @@ export default function App() {
     { id: 'read', label: t('cmd.read'), keywords: t('cmd.read.kw'), enabled: !!tab && view !== 'read', run: () => dispatchWs({ type: 'view', view: 'read' }) },
     { id: 'pages', label: t('cmd.pages'), keywords: t('cmd.pages.kw'), enabled: !!tab && view !== 'pages', run: () => dispatchWs({ type: 'view', view: 'pages' }) },
     { id: 'blank', label: t('cmd.blank'), keywords: t('cmd.blank.kw'), enabled: !!tab, run: insertBlank },
-    { id: 'mark', label: t('cmd.mark'), keywords: t('cmd.mark.kw'), enabled: hasPages, run: () => setPageDialog('mark') },
-    { id: 'crop', label: t('cmd.crop'), keywords: t('cmd.crop.kw'), enabled: hasPages, run: () => setPageDialog('crop') },
-    { id: 'resize', label: t('cmd.resize'), keywords: t('cmd.resize.kw'), enabled: hasPages, run: () => setPageDialog('resize') },
-    { id: 'protect', label: t('cmd.protect'), keywords: t('cmd.protect.kw'), enabled: !!tab, run: () => setProtectOpen(true) },
-    { id: 'bookmarks', label: t('cmd.bookmarks'), keywords: t('cmd.bookmarks.kw'), enabled: hasPages, run: () => setBookmarksOpen(true) },
-    { id: 'batch', label: t('cmd.batch'), keywords: t('cmd.batch.kw'), enabled: true, run: () => setBatchOpen(true) },
-    { id: 'ocr', label: t('cmd.ocr'), keywords: t('cmd.ocr.kw'), enabled: hasPages, run: () => setOcrOpen(true) },
-    { id: 'compare', label: t('cmd.compare'), keywords: t('cmd.compare.kw'), enabled: ws.tabs.length > 1, run: () => setCompareOpen(true) },
-    { id: 'compress', label: t('cmd.compress'), keywords: t('cmd.compress.kw'), enabled: hasPages, run: () => setCompressOpen(true) },
-    { id: 'export', label: t('cmd.export'), keywords: t('cmd.export.kw'), enabled: hasPages, run: () => setExportOpen(true) },
+    { id: 'mark', label: t('cmd.mark'), keywords: t('cmd.mark.kw'), enabled: hasPages, run: () => setDialog('mark') },
+    { id: 'crop', label: t('cmd.crop'), keywords: t('cmd.crop.kw'), enabled: hasPages, run: () => setDialog('crop') },
+    { id: 'resize', label: t('cmd.resize'), keywords: t('cmd.resize.kw'), enabled: hasPages, run: () => setDialog('resize') },
+    { id: 'protect', label: t('cmd.protect'), keywords: t('cmd.protect.kw'), enabled: !!tab, run: () => setDialog('protect') },
+    { id: 'bookmarks', label: t('cmd.bookmarks'), keywords: t('cmd.bookmarks.kw'), enabled: hasPages, run: () => setDialog('bookmarks') },
+    { id: 'batch', label: t('cmd.batch'), keywords: t('cmd.batch.kw'), enabled: true, run: () => setDialog('batch') },
+    { id: 'ocr', label: t('cmd.ocr'), keywords: t('cmd.ocr.kw'), enabled: hasPages, run: () => setDialog('ocr') },
+    { id: 'compare', label: t('cmd.compare'), keywords: t('cmd.compare.kw'), enabled: ws.tabs.length > 1, run: () => setDialog('compare') },
+    { id: 'compress', label: t('cmd.compress'), keywords: t('cmd.compress.kw'), enabled: hasPages, run: () => setDialog('compress') },
+    { id: 'export', label: t('cmd.export'), keywords: t('cmd.export.kw'), enabled: hasPages, run: () => setDialog('export') },
     { id: 'selectAll', label: t('cmd.selectAll'), enabled: hasPages && selected.size < pages.length, run: () => dispatch({ type: 'selectAll' }) },
     { id: 'selectNone', label: t('cmd.selectNone'), enabled: selected.size > 0, run: () => dispatch({ type: 'clearSelection' }) },
     { id: 'rotateRight', label: t('cmd.rotateRight'), keywords: t('cmd.rotate.kw'), enabled: selected.size > 0, run: () => dispatch({ type: 'rotate', ids: selectedInOrder(state), delta: 90 }) },
     { id: 'rotateLeft', label: t('cmd.rotateLeft'), keywords: t('cmd.rotate.kw'), enabled: selected.size > 0, run: () => dispatch({ type: 'rotate', ids: selectedInOrder(state), delta: -90 }) },
     { id: 'delete', label: t('cmd.delete'), keywords: t('cmd.delete.kw'), enabled: selected.size > 0, run: () => dispatch({ type: 'remove', ids: [...selected] }) },
     { id: 'reverse', label: t('cmd.reverse'), enabled: pages.length > 1, run: () => dispatch({ type: 'reverse' }) },
-    { id: 'split', label: t('cmd.split'), keywords: t('cmd.split.kw'), enabled: hasPages, run: () => setSplitOpen(true) },
-    { id: 'merge', label: t('cmd.merge'), keywords: t('cmd.merge.kw'), enabled: ws.tabs.length > 1, run: () => setMergeOpen(true) },
+    { id: 'split', label: t('cmd.split'), keywords: t('cmd.split.kw'), enabled: hasPages, run: () => setDialog('split') },
+    { id: 'merge', label: t('cmd.merge'), keywords: t('cmd.merge.kw'), enabled: ws.tabs.length > 1, run: () => setDialog('merge') },
     { id: 'closeTab', label: t('cmd.closeTab'), enabled: !!tab, run: () => tab && closeTab(tab.id) },
     { id: 'closeAll', label: t('cmd.closeAll'), enabled: ws.tabs.length > 0, run: closeAll },
     { id: 'language', label: t('cmd.language'), keywords: t('cmd.language.kw'), enabled: true, run: () => setLang(lang === 'de' ? 'en' : 'de') },
@@ -564,6 +294,7 @@ export default function App() {
   const meta = (
     <>
       <p className="privacy" title={t('privacy.title')}>{t('privacy.badge')}</p>
+      <span className="meta-controls">
       <button
         className="lang"
         title={t('lang.switch')}
@@ -572,6 +303,15 @@ export default function App() {
       >
         {t('lang.other')}
       </button>
+      <button
+        className="theme-toggle"
+        title={t(theme === 'dark' ? 'theme.light' : 'theme.dark')}
+        aria-label={t(theme === 'dark' ? 'theme.light' : 'theme.dark')}
+        onClick={toggleTheme}
+      >
+        <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={16} />
+      </button>
+      </span>
     </>
   );
 
@@ -610,7 +350,7 @@ export default function App() {
               view={view}
               onView={(v) => dispatchWs({ type: 'view', view: v })}
               tabCount={ws.tabs.length}
-              onMerge={() => setMergeOpen(true)}
+              onMerge={() => setDialog('merge')}
               onAdd={openFilePicker}
               onUndo={() => dispatch({ type: 'undo' })}
               onRedo={() => dispatch({ type: 'redo' })}
@@ -619,9 +359,9 @@ export default function App() {
               onRotate={(delta) => dispatch({ type: 'rotate', ids: selectedInOrder(state), delta })}
               onDelete={() => dispatch({ type: 'remove', ids: [...selected] })}
               onReverse={() => dispatch({ type: 'reverse' })}
-              onSplit={() => setSplitOpen(true)}
+              onSplit={() => setDialog('split')}
               overwriteName={overwriteTarget?.name}
-              onOverwrite={() => setOverwriteOpen(true)}
+              onOverwrite={() => setDialog('overwrite')}
               flatten={flatten}
               onFlatten={setFlatten}
               onSave={save}
@@ -698,7 +438,7 @@ export default function App() {
                 onAnnotate={(id, annots, removed) => dispatch({ type: 'annotate', id, annots, removed })}
                 onFill={(id, fields) => dispatch({ type: 'fill', id, fields })}
                 onEdit={(id, edits) => dispatch({ type: 'edit', id, edits })}
-                onProtect={() => setProtectOpen(true)}
+                onProtect={() => setDialog('protect')}
                 protectActive={protectActive}
                 bookmarks={bookmarks}
                 onDropFields={(id, indices) => dispatch({ type: 'dropFields', id, indices })}
@@ -708,18 +448,18 @@ export default function App() {
               <PageTools
                 disabled={!hasPages}
                 onBlank={insertBlank}
-                onMark={() => setPageDialog('mark')}
-                onCrop={() => setPageDialog('crop')}
-                onResize={() => setPageDialog('resize')}
-                onProtect={() => setProtectOpen(true)}
+                onMark={() => setDialog('mark')}
+                onCrop={() => setDialog('crop')}
+                onResize={() => setDialog('resize')}
+                onProtect={() => setDialog('protect')}
                 protectActive={protectActive}
-                onExport={() => setExportOpen(true)}
-                onCompress={() => setCompressOpen(true)}
-                onOcr={() => setOcrOpen(true)}
-                onBatch={() => setBatchOpen(true)}
-                onBookmarks={() => setBookmarksOpen(true)}
+                onExport={() => setDialog('export')}
+                onCompress={() => setDialog('compress')}
+                onOcr={() => setDialog('ocr')}
+                onBatch={() => setDialog('batch')}
+                onBookmarks={() => setDialog('bookmarks')}
                 canCompare={ws.tabs.length > 1}
-                onCompare={() => setCompareOpen(true)}
+                onCompare={() => setDialog('compare')}
               />
               <PageGrid
                 key={tab.id}
@@ -751,7 +491,7 @@ export default function App() {
           {busy}
           {progress !== null && progress > 0 && ` ${Math.round(progress * 100)} %`}
           {progress !== null && (
-            <button onClick={() => job.current?.abort()}>{t('busy.cancel')}</button>
+            <button onClick={() => cancel()}>{t('busy.cancel')}</button>
           )}
         </div>
       )}
@@ -779,29 +519,29 @@ export default function App() {
 
       {paletteOpen && <CommandPalette commands={commands} onClose={() => setPaletteOpen(false)} />}
 
-      {mergeOpen && (
-        <MergeDialog tabs={ws.tabs} onMerge={mergeTabs} onClose={() => setMergeOpen(false)} />
+      {dialog === 'merge' && (
+        <MergeDialog tabs={ws.tabs} onMerge={mergeTabs} onClose={() => setDialog(null)} />
       )}
 
-      {overwriteOpen && overwriteTarget && (
+      {dialog === 'overwrite' && overwriteTarget && (
         <PageDialog
           title={t('overwrite.title')}
           scope={t('overwrite.text', { name: overwriteTarget.name })}
           submitLabel={t('overwrite.apply')}
           onSubmit={() => {
-            setOverwriteOpen(false);
+            setDialog(null);
             void overwrite();
           }}
-          onClose={() => setOverwriteOpen(false)}
+          onClose={() => setDialog(null)}
         >
           <p className="dialog-hint">{t('overwrite.hint')}</p>
         </PageDialog>
       )}
-      {bookmarksOpen && (
-        <BookmarksDialog pages={pages} docs={docs} current={bookmarks} onApply={(items) => dispatch({ type: 'outline', items })} onClose={() => setBookmarksOpen(false)} />
+      {dialog === 'bookmarks' && (
+        <BookmarksDialog pages={pages} docs={docs} current={bookmarks} onApply={(items) => dispatch({ type: 'outline', items })} onClose={() => setDialog(null)} />
       )}
-      {batchOpen && <BatchDialog date={date} onClose={() => setBatchOpen(false)} />}
-      {ocrOpen && (
+      {dialog === 'batch' && <BatchDialog date={date} onClose={() => setDialog(null)} />}
+      {dialog === 'ocr' && (
         <OcrDialog
           scope={scope}
           hasText={target.some((p) => p.ocr?.length)}
@@ -823,25 +563,25 @@ export default function App() {
             return found.reduce((n, w) => n + (w?.length ?? 0), 0);
           }}
           onRemove={() => dispatch({ type: 'ocr', words: Object.fromEntries(target.map((p) => [p.id, null])) })}
-          onClose={() => setOcrOpen(false)}
+          onClose={() => setDialog(null)}
         />
       )}
-      {compareOpen && <CompareDialog tabs={ws.tabs} docs={docs} onClose={() => setCompareOpen(false)} />}
-      {compressOpen && (
+      {dialog === 'compare' && <CompareDialog tabs={ws.tabs} docs={docs} onClose={() => setDialog(null)} />}
+      {dialog === 'compress' && (
         <CompressDialog
           scope={scope}
           onCompress={async (level: CompressLevel) => {
-            const options = { flatten, date, protect, clean, outline: outlineFor(target) };
+            const options = optionsFor(target);
             const before = await buildPdf(target, docs, options);
             const bytes = await buildPdf(target, docs, { ...options, compress: LEVELS[level] });
             return { before: before.length, after: bytes.length, bytes };
           }}
           onSave={(bytes) => download(bytes, `${base()}-${t('file.compressed')}.pdf`)}
-          onClose={() => setCompressOpen(false)}
+          onClose={() => setDialog(null)}
         />
       )}
-      {exportOpen && <ExportDialog scope={scope} onExport={exportPages} onClose={() => setExportOpen(false)} />}
-      {protectOpen && (
+      {dialog === 'export' && <ExportDialog scope={scope} onExport={exportPages} onClose={() => setDialog(null)} />}
+      {dialog === 'protect' && (
         <ProtectDialog
           protect={protect}
           clean={clean}
@@ -850,19 +590,19 @@ export default function App() {
             setProtect(p);
             setClean(c);
           }}
-          onClose={() => setProtectOpen(false)}
+          onClose={() => setDialog(null)}
         />
       )}
-      {pageDialog === 'mark' && (
+      {dialog === 'mark' && (
         <MarkDialog
           scope={scope}
           target={target}
           onAdd={(mark) => dispatch({ type: 'mark', ids: target.map((p) => p.id), mark })}
           onRemove={(markId) => dispatch({ type: 'unmark', ids: target.map((p) => p.id), markId })}
-          onClose={() => setPageDialog(null)}
+          onClose={() => setDialog(null)}
         />
       )}
-      {pageDialog === 'crop' && (
+      {dialog === 'crop' && (
         <CropDialog
           scope={scope}
           hasCrop={target.some((p) => p.crop)}
@@ -876,10 +616,10 @@ export default function App() {
             dispatch({ type: 'crop', crops });
           }}
           onReset={() => dispatch({ type: 'crop', crops: Object.fromEntries(target.map((p) => [p.id, null])) })}
-          onClose={() => setPageDialog(null)}
+          onClose={() => setDialog(null)}
         />
       )}
-      {pageDialog === 'resize' && (
+      {dialog === 'resize' && (
         <ResizeDialog
           scope={scope}
           hasSize={target.some((p) => p.size)}
@@ -896,16 +636,16 @@ export default function App() {
             dispatch({ type: 'resize', sizes });
           }}
           onReset={() => dispatch({ type: 'resize', sizes: Object.fromEntries(target.map((p) => [p.id, null])) })}
-          onClose={() => setPageDialog(null)}
+          onClose={() => setDialog(null)}
         />
       )}
 
-      {splitOpen && (
+      {dialog === 'split' && (
         <SplitDialog
           total={pages.length}
           selectedCount={selected.size}
           onSplit={split}
-          onClose={() => setSplitOpen(false)}
+          onClose={() => setDialog(null)}
         />
       )}
     </>
