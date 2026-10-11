@@ -14,9 +14,9 @@ import {
 } from '../../core/readerLayout';
 import { placeOutline, type FileOutline } from '../../core/outline';
 import { boxOnScreen, type Box } from '../../core/textLayer';
-import type { Edit } from '../../core/edits';
+import { moveBox, type Edit } from '../../core/edits';
 import { toPlaced, type Bookmark } from '../../core/bookmarks';
-import { boxBetween, isMarkup, mergeLineBoxes, screenToPage, unionOf, COMMENT_COLORS, DEFAULT_COLOR, type Annot } from '../../core/annotations';
+import { boxBetween, isMarkup, mergeLineBoxes, moveAnnot, screenToPage, unionOf, COMMENT_COLORS, DEFAULT_COLOR, type Annot } from '../../core/annotations';
 import type { PageRef } from '../../core/types';
 import type { ReaderMemory } from '../../state/workspace';
 import { useI18n } from '../../i18n/context';
@@ -35,6 +35,8 @@ import { MAX_MATCHES, useSearch } from './useSearch';
 
 const SHAPE_COLOR = COMMENT_COLORS[1];
 const NO_HITS: { boxes: Box[]; active: boolean }[] = [];
+/** Arrow keys as directions on the screen. */
+const ARROWS: Record<string, readonly [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
 
 interface Props {
   pages: PageRef[];
@@ -95,6 +97,10 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
   const stampText = t(`stamp.${stampName}`);
   const stamp = useMemo(() => ({ name: stampName, text: stampText }), [stampName, stampText]);
   useClearSelection(setSelectedId);
+  // Picking a picture or a line removes the button that was clicked and with it the focus; keys such as the arrows need it in the reader.
+  useEffect(() => {
+    if (selectedId && document.activeElement === document.body) scroller.current?.focus({ preventScroll: true });
+  }, [selectedId]);
 
   // The file's own comments are read when the list is opened.
   useEffect(() => {
@@ -310,6 +316,7 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
     if (mod && (e.key === '+' || e.key === '=')) zoomBy(1);
     else if (mod && e.key === '-') zoomBy(-1);
     else if (mod && e.key === '0') setZoom({ kind: 'width' });
+    else if (!mod && selectedId && e.key in ARROWS) nudgeSelected(ARROWS[e.key], e.shiftKey ? 10 : 1);
     else if (!mod && (e.key === 'PageDown' || e.key === 'ArrowRight')) goTo(current + 1);
     else if (!mod && (e.key === 'PageUp' || e.key === 'ArrowLeft')) goTo(current - 1);
     else if (e.key === 'Escape' && (tool || selectedId)) {
@@ -320,6 +327,21 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
     else if (e.key === 'End') goTo(pages.length - 1);
     else return;
     e.preventDefault();
+  }
+
+  /** Moves the selected comment or changed picture by `step` page points per press, in the direction the page is shown. */
+  function nudgeSelected([vx, vy]: readonly [number, number], step: number) {
+    const index = pages.findIndex((p) => p.annots?.some((a) => a.id === selectedId) || p.edits?.some((x) => x.id === selectedId));
+    if (index < 0) return;
+    const page = pages[index];
+    const from = screenToPage(0, 0, baseSizes[index], page.rotation, 1);
+    const to = screenToPage(vx * step, vy * step, baseSizes[index], page.rotation, 1);
+    const [dx, dy] = [to[0] - from[0], to[1] - from[1]];
+    const annot = page.annots?.find((a) => a.id === selectedId);
+    // Markings follow the text they are on; they are not moved.
+    if (annot && !isMarkup(annot.kind)) annotate(page, page.annots!.map((a) => (a === annot ? moveAnnot(a, dx, dy) : a)));
+    const edit = page.edits?.find((x) => x.id === selectedId);
+    if (edit?.kind === 'image' && edit.target) editPage(page, page.edits!.map((x) => (x === edit && x.kind === 'image' ? { ...x, target: moveBox(edit.target!, dx, dy) } : x)));
   }
 
   /** Turns the selected text into a highlight, underline or strikeout, on every page it touches. */

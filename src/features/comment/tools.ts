@@ -34,7 +34,10 @@ export const isDrawTool = (tool: Tool): tool is Exclude<Tool, null | 'highlight'
 export function useClearSelection(onSelect: (id: string | null) => void) {
   useEffect(() => {
     const clear = (e: PointerEvent) => {
-      if (!(e.target as Element).closest('[data-annot], .annot-shape, .comment-panel, .comment-bar, .panel-toggle')) onSelect(null);
+      if ((e.target as Element).closest('[data-annot], .annot-shape, .comment-panel, .comment-bar, .panel-toggle')) return;
+      // A text that is being typed is taken over before the field goes away, so a quick click on Save already sees it.
+      (document.activeElement as HTMLElement | null)?.blur();
+      onSelect(null);
     };
     document.addEventListener('pointerdown', clear);
     return () => document.removeEventListener('pointerdown', clear);

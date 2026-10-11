@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   arrowHead,
   boundsOf,
   boxBetween,
   screenToPage,
+  moveAnnot,
   type Annot,
   type AnnotKind,
   type Pt,
@@ -13,6 +14,7 @@ import { overlayTransform } from '../../core/textLayer';
 import { makeStamp, type StampName } from './stamps';
 import { FIELD_SIZES, newField, type FieldType } from '../../core/formfields';
 import { makeCheck } from './pictures';
+import { usePngUrl } from '../../ui/usePngUrl';
 import { isDrawTool, type Picture, type Tool } from './tools';
 
 interface Props {
@@ -36,14 +38,6 @@ interface Props {
 }
 
 const newId = () => crypto.randomUUID();
-
-const shift = (a: Annot, dx: number, dy: number): Annot => ({
-  ...a,
-  box: [a.box[0] + dx, a.box[1] + dy, a.box[2] + dx, a.box[3] + dy],
-  quads: a.quads?.map((q) => [q[0] + dx, q[1] + dy, q[2] + dx, q[3] + dy]),
-  strokes: a.strokes?.map((s) => s.map(([x, y]) => [x + dx, y + dy] as Pt)),
-  line: a.line && ([[a.line[0][0] + dx, a.line[0][1] + dy], [a.line[1][0] + dx, a.line[1][1] + dy]] as [Pt, Pt]),
-});
 
 /** Comments of one page, drawn over it, and the pointer handling that creates and moves them. */
 export default function AnnotLayer({ size, rotation, scale, annots, tool, color, stamp, dateText, picture, fieldDefaults, selectedId, onSelect, onChange, onPlaced }: Props) {
@@ -146,7 +140,7 @@ export default function AnnotLayer({ size, rotation, scale, annots, tool, color,
     onPlaced();
   }
 
-  const shown = useMemo(() => annots.map((a) => (moving && moving.id === a.id ? shift(a, moving.dx, moving.dy) : a)), [annots, moving]);
+  const shown = useMemo(() => annots.map((a) => (moving && moving.id === a.id ? moveAnnot(a, moving.dx, moving.dy) : a)), [annots, moving]);
 
   return (
     <>
@@ -156,6 +150,7 @@ export default function AnnotLayer({ size, rotation, scale, annots, tool, color,
             <Shape
               key={a.id}
               a={a}
+              hit={12 / scale}
               selected={a.id === selectedId}
               onDown={(e) => {
                 if (drawing) return;
@@ -173,7 +168,7 @@ export default function AnnotLayer({ size, rotation, scale, annots, tool, color,
               }}
               onUp={() => {
                 if (moving && moving.id === a.id && (moving.dx || moving.dy)) {
-                  onChange(annots.map((x) => (x.id === a.id ? shift(x, moving.dx, moving.dy) : x)));
+                  onChange(annots.map((x) => (x.id === a.id ? moveAnnot(x, moving.dx, moving.dy) : x)));
                 }
                 setMoving(null);
               }}
@@ -202,7 +197,7 @@ export default function AnnotLayer({ size, rotation, scale, annots, tool, color,
             }}
             onPointerUp={() => {
               if (moving && moving.id === a.id && (moving.dx || moving.dy)) {
-                onChange(annots.map((x) => (x.id === a.id ? shift(x, moving.dx, moving.dy) : x)));
+                onChange(annots.map((x) => (x.id === a.id ? moveAnnot(x, moving.dx, moving.dy) : x)));
               }
               setMoving(null);
             }}
@@ -241,15 +236,19 @@ export default function AnnotLayer({ size, rotation, scale, annots, tool, color,
 
 interface ShapeProps {
   a: Annot;
+  /** Width in page points of the area around a line that still grabs it (about 12 screen pixels). */
+  hit: number;
   selected: boolean;
   onDown: (e: React.PointerEvent<SVGElement>) => void;
   onMove: (e: React.PointerEvent<SVGElement>) => void;
   onUp: (e: React.PointerEvent<SVGElement>) => void;
 }
 
-function Shape({ a, selected, onDown, onMove, onUp }: ShapeProps) {
+function Shape({ a, hit, selected, onDown, onMove, onUp }: ShapeProps) {
   const handlers = { onPointerDown: onDown, onPointerMove: onMove, onPointerUp: onUp };
   const stroke = { stroke: a.color, strokeWidth: a.width ?? 1.5, fill: 'none', className: 'annot-shape' };
+  // A wide invisible copy of the line under the visible one, so thin lines are easy to grab.
+  const grab = { className: 'annot-shape', stroke: 'transparent', strokeWidth: Math.max(a.width ?? 1.5, hit), fill: 'none' };
   const ring = selected ? (
     <rect className="annot-ring" x={a.box[0] - 3} y={a.box[1] - 3} width={a.box[2] - a.box[0] + 6} height={a.box[3] - a.box[1] + 6} />
   ) : null;
@@ -285,6 +284,9 @@ function Shape({ a, selected, onDown, onMove, onUp }: ShapeProps) {
           {(a.strokes ?? []).map((s, i) => (
             <polyline key={i} {...stroke} points={s.map((p) => p.join(',')).join(' ')} strokeLinecap="round" strokeLinejoin="round" />
           ))}
+          {(a.strokes ?? []).map((s, i) => (
+            <polyline key={`grab${i}`} {...grab} points={s.map((p) => p.join(',')).join(' ')} strokeLinecap="round" strokeLinejoin="round" />
+          ))}
           {ring}
         </g>
       );
@@ -292,6 +294,7 @@ function Shape({ a, selected, onDown, onMove, onUp }: ShapeProps) {
       return (
         <g {...handlers} style={{ pointerEvents: 'stroke' }}>
           <rect {...stroke} x={a.box[0]} y={a.box[1]} width={a.box[2] - a.box[0]} height={a.box[3] - a.box[1]} />
+          <rect {...grab} x={a.box[0]} y={a.box[1]} width={a.box[2] - a.box[0]} height={a.box[3] - a.box[1]} />
           {ring}
         </g>
       );
@@ -299,6 +302,7 @@ function Shape({ a, selected, onDown, onMove, onUp }: ShapeProps) {
       return (
         <g {...handlers} style={{ pointerEvents: 'stroke' }}>
           <ellipse {...stroke} cx={(a.box[0] + a.box[2]) / 2} cy={(a.box[1] + a.box[3]) / 2} rx={(a.box[2] - a.box[0]) / 2} ry={(a.box[3] - a.box[1]) / 2} />
+          <ellipse {...grab} cx={(a.box[0] + a.box[2]) / 2} cy={(a.box[1] + a.box[3]) / 2} rx={(a.box[2] - a.box[0]) / 2} ry={(a.box[3] - a.box[1]) / 2} />
           {ring}
         </g>
       );
@@ -308,6 +312,7 @@ function Shape({ a, selected, onDown, onMove, onUp }: ShapeProps) {
       const head = a.kind === 'arrow' ? arrowHead(p, q, 10) : null;
       return (
         <g {...handlers} style={{ pointerEvents: 'stroke' }}>
+          <line {...grab} x1={p[0]} y1={p[1]} x2={q[0]} y2={q[1]} strokeLinecap="round" />
           <line {...stroke} x1={p[0]} y1={p[1]} x2={q[0]} y2={q[1]} strokeLinecap="round" />
           {head && <polyline {...stroke} points={`${head[0].join(',')} ${q.join(',')} ${head[1].join(',')}`} strokeLinecap="round" strokeLinejoin="round" />}
           {ring}
@@ -359,8 +364,7 @@ function Shape({ a, selected, onDown, onMove, onUp }: ShapeProps) {
 }
 
 function StampImage({ a }: { a: Annot }) {
-  const url = useMemo(() => (a.image ? URL.createObjectURL(new Blob([a.image as BlobPart], { type: 'image/png' })) : ''), [a.image]);
-  useEffect(() => () => URL.revokeObjectURL(url), [url]);
+  const url = usePngUrl(a.image);
   return <image href={url} x={a.box[0]} y={a.box[1]} width={a.box[2] - a.box[0]} height={a.box[3] - a.box[1]} preserveAspectRatio="none" />;
 }
 

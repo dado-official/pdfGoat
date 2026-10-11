@@ -138,3 +138,12 @@ export function rgb(hex: string): [number, number, number] {
 /** Comments in reading order of the page: top to bottom, then left to right. */
 export const sortAnnots = (annots: readonly Annot[]): Annot[] =>
   [...annots].sort((a, b) => a.box[1] - b.box[1] || a.box[0] - b.box[0] || a.created - b.created);
+
+/** The comment moved by a distance in page points. */
+export const moveAnnot = (a: Annot, dx: number, dy: number): Annot => ({
+  ...a,
+  box: [a.box[0] + dx, a.box[1] + dy, a.box[2] + dx, a.box[3] + dy],
+  quads: a.quads?.map((q) => [q[0] + dx, q[1] + dy, q[2] + dx, q[3] + dy]),
+  strokes: a.strokes?.map((s) => s.map(([x, y]) => [x + dx, y + dy] as Pt)),
+  line: a.line && ([[a.line[0][0] + dx, a.line[0][1] + dy], [a.line[1][0] + dx, a.line[1][1] + dy]] as [Pt, Pt]),
+});

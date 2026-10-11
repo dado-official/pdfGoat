@@ -59,6 +59,11 @@ const PATHS = {
   sun: 'M12 8a4 4 0 100 8 4 4 0 000-8zM12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4',
   moon: 'M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z',
   resize: 'M4 9V4h5M20 15v5h-5M4 4l6 6M20 20l-6-6',
+  // Form fields
+  fieldText: 'M3 7h18v10H3zM7 10.5v3',
+  fieldCheck: 'M5 5h14v14H5zM8.5 12.5l2.5 2.5 4.5-5',
+  fieldRadio: 'M12 4a8 8 0 100 16 8 8 0 000-16zM12 9a3 3 0 100 6 3 3 0 000-6z',
+  fieldChoice: 'M3 7h18v10H3zM14 11l2.5 2.5L19 11',
 } as const;
 
 export type IconName = keyof typeof PATHS;

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { usePngUrl } from '../../ui/usePngUrl';
 import { useI18n } from '../../i18n/context';
 import { fromCanvas, imagePicture, loadSaved, save, typedPicture } from '../comment/pictures';
 import type { Picture } from '../comment/tools';
@@ -30,8 +31,7 @@ export default function SignatureDialog({ kind, color, onDone }: Props) {
     if (!dialog.current?.open) dialog.current?.showModal();
   }, []);
 
-  const savedUrl = useMemo(() => (saved ? URL.createObjectURL(new Blob([saved.bytes as BlobPart], { type: 'image/png' })) : ''), [saved]);
-  useEffect(() => () => URL.revokeObjectURL(savedUrl), [savedUrl]);
+  const savedUrl = usePngUrl(saved?.bytes);
 
   function point(e: React.PointerEvent<HTMLCanvasElement>) {
     const r = e.currentTarget.getBoundingClientRect();

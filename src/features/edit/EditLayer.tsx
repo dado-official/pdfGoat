@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
+import { usePngUrl } from '../../ui/usePngUrl';
 import { screenToPage, type Pt } from '../../core/annotations';
 import { lineBox, moveBox, type Edit } from '../../core/edits';
 import type { Size } from '../../core/readerLayout';
@@ -111,8 +112,7 @@ export default function EditLayer({ size, rotation, scale, edits, tool, lines, i
 }
 
 function EditPicture({ png, style, selected, ...handlers }: { png: Uint8Array; style: React.CSSProperties; selected: boolean } & React.HTMLAttributes<HTMLDivElement>) {
-  const url = useMemo(() => URL.createObjectURL(new Blob([png as BlobPart], { type: 'image/png' })), [png]);
-  useEffect(() => () => URL.revokeObjectURL(url), [url]);
+  const url = usePngUrl(png);
   return (
     <div className={selected ? 'edit-picture selected' : 'edit-picture'} data-annot="picture" style={style} {...handlers}>
       <img src={url} alt="" draggable={false} />

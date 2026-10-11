@@ -117,4 +117,42 @@ test.describe('comments', () => {
     await openOne(page, await makeCommentedPdf());
     expect(await save(page)).toEqual([[{ type: 'Text', contents: 'Alter Kommentar' }]]);
   });
+
+  test('keeps a text that is still being typed when Save is clicked at once', async ({ app: page }) => {
+    await openOne(page, await makePdf([{ width: 595, label: 'Hallo' }]));
+    await tool(page, 'Textfeld').click();
+    await sheet(page).click({ position: { x: 200, y: 120 } });
+    await panelButton(page).click();
+    await page.getByRole('textbox', { name: 'Kommentartext' }).fill('Sofort gespeichert');
+    // No pause and no leaving the field: the click on Save is the only thing that follows.
+    expect(await save(page)).toEqual([[{ type: 'FreeText', contents: 'Sofort gespeichert' }]]);
+  });
+
+  test('moves the chosen shape with the arrow keys instead of turning the page', async ({ app: page }) => {
+    await page.getByTestId('file-input').setInputFiles(pdfFile('doc.pdf', await makePdf([{ width: 595 }, { width: 595 }])));
+    await expect(page.locator('.card img')).toHaveCount(2);
+    await page.getByRole('button', { name: 'Lesen', exact: true }).click();
+    await expect(page.locator('.read-page img').first()).toBeVisible();
+    const shape = page.locator('.annot-layer svg rect.annot-shape').first();
+    const at = async () => ({ x: Number(await shape.getAttribute('x')), y: Number(await shape.getAttribute('y')) });
+    await tool(page, 'Rechteck').click();
+    await drag(page, [100, 100], [220, 160]);
+    const start = await at();
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('Shift+ArrowDown');
+    const moved = await at();
+    expect(moved.x - start.x).toBeCloseTo(1, 1);
+    expect(moved.y - start.y).toBeCloseTo(10, 1);
+    await expect(page.locator('.page-field input')).toHaveValue('1');
+  });
+
+  test('grabs a line a few pixels beside it', async ({ app: page }) => {
+    await openOne(page, await makePdf([{ width: 595 }]));
+    await tool(page, 'Linie').click();
+    await drag(page, [100, 200], [300, 200]);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.annot-ring')).toHaveCount(0);
+    await sheet(page).click({ position: { x: 200, y: 204 } });
+    await expect(page.locator('.annot-ring')).toHaveCount(1);
+  });
 });
