@@ -544,6 +544,8 @@ export default function Reader({ pages, docs, thumbs, failedThumbs, onNeedThumb,
         onScroll={onScroll}
         onKeyDown={onKeyDown}
         onMouseUp={markSelection}
+        // Safari selects the word of a double click only after the mouse button is up.
+        onDoubleClick={markSelection}
       >
         <div className="reader-pages" style={{ height: layout.total }}>
           {pages.map((p, i) => (
